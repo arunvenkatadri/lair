@@ -1,0 +1,116 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "crates/lair",
+    "crates/lair-core",
+    "crates/lair-msgs",
+    "crates/lair-biscuit",
+    "crates/lair-bagel", 
+    "crates/lair-derive",
+    "crates/lair-cli",
+    # "crates/lair-micro",     # no_std - separate build
+    # "crates/lair-studio",    # Web UI - v0.2
+    # "crates/lair-k8s",       # Kubernetes - v0.4
+    "examples/simple_robot",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Extelligence <team@extelligence.ai>"]
+repository = "https://github.com/Extelligence-ai/lair"
+homepage = "https://lair.dev"
+keywords = ["robotics", "middleware", "safety", "deterministic", "autonomous"]
+categories = ["science::robotics", "embedded", "aerospace::drones"]
+rust-version = "1.75"
+
+[workspace.dependencies]
+# Internal crates
+lair = { path = "crates/lair", version = "0.1.0" }
+lair-core = { path = "crates/lair-core", version = "0.1.0" }
+lair-msgs = { path = "crates/lair-msgs", version = "0.1.0" }
+lair-biscuit = { path = "crates/lair-biscuit", version = "0.1.0" }
+lair-bagel = { path = "crates/lair-bagel", version = "0.1.0" }
+lair-derive = { path = "crates/lair-derive", version = "0.1.0" }
+lair-cli = { path = "crates/lair-cli", version = "0.1.0" }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = { version = "2.0", features = ["derive", "serde"] }
+ron = "0.8"
+
+# Async
+tokio = { version = "1.0", features = ["full", "rt-multi-thread", "sync", "time", "macros"] }
+async-trait = "0.1"
+futures = "0.3"
+
+# Data/Safety (Biscuit/Bagel ecosystem)
+duckdb = { version = "1.0" }
+arrow = { version = "53.0", features = ["prettyprint"] }
+parquet = "53.0"
+
+# CLI
+clap = { version = "4.5", features = ["derive", "env"] }
+clap_complete = "4.5"
+
+# Proc macros
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "2.0", features = ["full", "extra-traits", "parsing"] }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Logging/Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Math & Physics
+nalgebra = { version = "0.33", features = ["serde-serialize"] }
+uom = { version = "0.36", features = ["serde", "f64", "si"] }
+
+# Zero-copy & Memory
+zerocopy = { version = "0.8", features = ["derive"] }
+bytes = "1.0"
+crossbeam = "0.8"
+parking_lot = "0.12"
+
+# Config
+config = "0.14"
+dirs = "5.0"
+toml = "0.8"
+
+# IPC / Networking  
+# zenoh = "1.0"  # Multi-machine - v0.4
+
+# Testing
+tempfile = "3.0"
+criterion = "0.5"
+proptest = "1.0"
+
+# UUID for message IDs
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
+[features]
+default = []
+biscuit = []   # LLM safety guards - service robots, manipulation
+bagel = []     # Smart logging - Matcha compatible
+matcha = []    # Cloud sync - fleet management
+ml = []        # ML inference runtime
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+[profile.dev]
+opt-level = 1  # Faster debug builds
+
+[profile.bench]
+lto = true
