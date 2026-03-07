@@ -254,7 +254,8 @@ LAIR is part of the **Extelligence** ecosystem:
 | Project | Description | v0.1-beta Status |
 |---------|-------------|------------------|
 | **[Bagel](https://github.com/Extelligence-ai/bagel)** | Chat with your robot data | MCAP logging wired |
-| **[Biscuit](https://github.com/Extelligence-ai/biscuit)** | Physics-constrained AI safety | Trait defined, stub impl |
+| **[Biscuit](https://github.com/Extelligence-ai/biscuit)** | Physics-constrained AI safety | Coming soon |
+| **[Matcha](https://github.com/Extelligence-ai/matcha)** | Cloud fleet management &amp; monitoring | Coming soon |
 | **[NVIDIA Isaac Sim](https://developer.nvidia.com/isaac/sim)** | Robotics simulation | Trait defined, mock impl |
 
 ---
