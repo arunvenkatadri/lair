@@ -28,7 +28,7 @@ LAIR is a robotics runtime for commercial and industrial deployments &mdash; aut
 - **Compile-time graph validation** &mdash; wiring errors caught at `cargo build`, not at 2 AM in the field
 - **Unified logging** &mdash; every message and state snapshot in MCAP format for replay and analysis
 - **Mockable clock** &mdash; nanosecond-precision monotonic clock with mock support for deterministic testing
-- **Rust-native** &mdash; memory safety, thread safety, `no_std` support for embedded targets
+- **Rust-native** &mdash; memory safety, thread safety; runtime and core traits compile for `no_std` embedded targets
 
 ---
 
@@ -40,7 +40,7 @@ LAIR is a robotics runtime for commercial and industrial deployments &mdash; aut
 | Non-deterministic execution | Deterministic DAG scheduler, compile-time graph validation |
 | Serialization overhead on message bus | Zero-copy message passing between tasks |
 | Hard to replay and analyze logs | Unified MCAP logging with deterministic replay |
-| No embedded story (MicroROS) | Same task traits for `std` and `no_std` targets |
+| No embedded story (MicroROS) | Runtime and traits compile for `no_std`; no separate embedded API |
 
 ---
 
