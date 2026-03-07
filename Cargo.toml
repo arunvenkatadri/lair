@@ -34,7 +34,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.0-beta"
 edition = "2024"
 license = "Apache-2.0"
 authors = ["Extelligence <team@extelligence.ai>"]
@@ -46,31 +46,31 @@ rust-version = "1.75"
 
 [workspace.dependencies]
 # ── Internal crates (forked from Copper) ──
-cu29 = { path = "crates/lair", version = "0.1.0" }
-cu29-clock = { path = "crates/cu29-clock", default-features = false, version = "0.1.0" }
-cu29-intern-strs = { path = "crates/cu29-intern-strs", version = "0.1.0" }
-cu29-reflect-derive = { path = "crates/cu29-reflect-derive", version = "0.1.0" }
-cu29-soa-derive = { path = "crates/cu29-soa-derive", version = "0.1.0" }
-cu29-base-derive = { path = "crates/cu29-base-derive", version = "0.1.0" }
-cu29-value = { path = "crates/cu29-value", default-features = false, version = "0.1.0" }
-cu29-traits = { path = "crates/cu29-traits", default-features = false, version = "0.1.0" }
-cu29-unifiedlog = { path = "crates/cu29-unifiedlog", default-features = false, features = ["compact", "mcap"], version = "0.1.0" }
-cu29-log = { path = "crates/cu29-log", default-features = false, version = "0.1.0" }
-cu29-log-derive = { path = "crates/cu29-log-derive", default-features = false, version = "0.1.0" }
-cu29-log-runtime = { path = "crates/cu29-log-runtime", default-features = false, version = "0.1.0" }
-cu29-runtime = { path = "crates/cu29-runtime", default-features = false, version = "0.1.0" }
-cu29-helpers = { path = "crates/cu29-helpers", version = "0.1.0" }
-cu29-derive = { path = "crates/cu29-derive", default-features = false, version = "0.1.0" }
-cu29-units = { path = "crates/cu29-units", version = "0.1.0" }
+cu29 = { path = "crates/lair", version = "0.1.0-beta" }
+cu29-clock = { path = "crates/cu29-clock", default-features = false, version = "0.1.0-beta" }
+cu29-intern-strs = { path = "crates/cu29-intern-strs", version = "0.1.0-beta" }
+cu29-reflect-derive = { path = "crates/cu29-reflect-derive", version = "0.1.0-beta" }
+cu29-soa-derive = { path = "crates/cu29-soa-derive", version = "0.1.0-beta" }
+cu29-base-derive = { path = "crates/cu29-base-derive", version = "0.1.0-beta" }
+cu29-value = { path = "crates/cu29-value", default-features = false, version = "0.1.0-beta" }
+cu29-traits = { path = "crates/cu29-traits", default-features = false, version = "0.1.0-beta" }
+cu29-unifiedlog = { path = "crates/cu29-unifiedlog", default-features = false, features = ["compact", "mcap"], version = "0.1.0-beta" }
+cu29-log = { path = "crates/cu29-log", default-features = false, version = "0.1.0-beta" }
+cu29-log-derive = { path = "crates/cu29-log-derive", default-features = false, version = "0.1.0-beta" }
+cu29-log-runtime = { path = "crates/cu29-log-runtime", default-features = false, version = "0.1.0-beta" }
+cu29-runtime = { path = "crates/cu29-runtime", default-features = false, version = "0.1.0-beta" }
+cu29-helpers = { path = "crates/cu29-helpers", version = "0.1.0-beta" }
+cu29-derive = { path = "crates/cu29-derive", default-features = false, version = "0.1.0-beta" }
+cu29-units = { path = "crates/cu29-units", version = "0.1.0-beta" }
 
 # ── LAIR public API crates ──
-lair-core = { path = "crates/lair-core", version = "0.1.0" }
-lair-msgs = { path = "crates/lair-msgs", version = "0.1.0" }
-lair-biscuit = { path = "crates/lair-biscuit", version = "0.1.0" }
-lair-bagel = { path = "crates/lair-bagel", version = "0.1.0" }
-lair-cli = { path = "crates/lair-cli", version = "0.1.0" }
-lair-isaac = { path = "crates/lair-isaac", version = "0.1.0" }
-lair-derive = { path = "crates/lair-derive", version = "0.1.0" }
+lair-core = { path = "crates/lair-core", version = "0.1.0-beta" }
+lair-msgs = { path = "crates/lair-msgs", version = "0.1.0-beta" }
+lair-biscuit = { path = "crates/lair-biscuit", version = "0.1.0-beta" }
+lair-bagel = { path = "crates/lair-bagel", version = "0.1.0-beta" }
+lair-cli = { path = "crates/lair-cli", version = "0.1.0-beta" }
+lair-isaac = { path = "crates/lair-isaac", version = "0.1.0-beta" }
+lair-derive = { path = "crates/lair-derive", version = "0.1.0-beta" }
 
 # ── Serialization ──
 bincode = { version = "2.0", default-features = false, features = ["derive", "alloc"] }

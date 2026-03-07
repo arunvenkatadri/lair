@@ -641,7 +641,7 @@ dependencies = [
 
 [[package]]
 name = "cu29"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "bincode",
  "ctrlc",
@@ -665,7 +665,7 @@ dependencies = [
 
 [[package]]
 name = "cu29-base-derive"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "cu29-intern-strs",
  "quote",
@@ -674,7 +674,7 @@ dependencies = [
 
 [[package]]
 name = "cu29-clock"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "approx",
  "bevy_reflect",
@@ -686,7 +686,7 @@ dependencies = [
 
 [[package]]
 name = "cu29-derive"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "convert_case",
  "cu29",
@@ -705,7 +705,7 @@ dependencies = [
 
 [[package]]
 name = "cu29-helpers"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "cu29-clock",
  "cu29-log",
@@ -722,7 +722,7 @@ dependencies = [
 
 [[package]]
 name = "cu29-intern-strs"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "anyhow",
  "bincode",
@@ -731,7 +731,7 @@ dependencies = [
 
 [[package]]
 name = "cu29-log"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "bincode",
  "cu29-clock",
@@ -745,7 +745,7 @@ dependencies = [
 
 [[package]]
 name = "cu29-log-derive"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "cu29-intern-strs",
  "cu29-log",
@@ -757,7 +757,7 @@ dependencies = [
 
 [[package]]
 name = "cu29-log-runtime"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "bincode",
  "cu29-clock",
@@ -772,11 +772,11 @@ dependencies = [
 
 [[package]]
 name = "cu29-reflect-derive"
-version = "0.1.0"
+version = "0.1.0-beta"
 
 [[package]]
 name = "cu29-runtime"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "arrayvec",
  "bevy_reflect",
@@ -816,7 +816,7 @@ dependencies = [
 
 [[package]]
 name = "cu29-soa-derive"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "bincode",
  "quote",
@@ -829,7 +829,7 @@ dependencies = [
 
 [[package]]
 name = "cu29-traits"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "bincode",
  "compact_str",
@@ -842,7 +842,7 @@ dependencies = [
 
 [[package]]
 name = "cu29-unifiedlog"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "bincode",
  "cu29-traits",
@@ -855,7 +855,7 @@ dependencies = [
 
 [[package]]
 name = "cu29-units"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "bevy_reflect",
  "bincode",
@@ -865,7 +865,7 @@ dependencies = [
 
 [[package]]
 name = "cu29-value"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "bincode",
  "cu29-clock",
@@ -1587,7 +1587,7 @@ dependencies = [
 
 [[package]]
 name = "lair-bagel"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "cu29-clock",
  "cu29-log-runtime",
@@ -1599,7 +1599,7 @@ dependencies = [
 
 [[package]]
 name = "lair-biscuit"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "lair-core",
  "lair-msgs",
@@ -1607,7 +1607,7 @@ dependencies = [
 
 [[package]]
 name = "lair-cli"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "anyhow",
  "clap",
@@ -1615,7 +1615,7 @@ dependencies = [
 
 [[package]]
 name = "lair-core"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "cu29-clock",
  "cu29-runtime",
@@ -1625,7 +1625,7 @@ dependencies = [
 
 [[package]]
 name = "lair-derive"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1634,14 +1634,14 @@ dependencies = [
 
 [[package]]
 name = "lair-isaac"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "lair-core",
 ]
 
 [[package]]
 name = "lair-msgs"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "bincode",
  "cu29-clock",
@@ -2812,7 +2812,7 @@ checksum = "e320a6c5ad31d271ad523dcf3ad13e2767ad8b1cb8f047f75a8aeaf8da139da2"
 
 [[package]]
 name = "simple-robot"
-version = "0.1.0"
+version = "0.1.0-beta"
 dependencies = [
  "cu29",
  "cu29-helpers",

@@ -1,35 +1,34 @@
 # LAIR
 
-**Layered Autonomous Intelligence Runtime**
-
 <p align="center">
-  <em>A production robotics runtime. Rust-native. Safety-first. Deterministic.</em>
+  <em>A deterministic robotics runtime for production deployments. Built in Rust on <a href="https://github.com/copper-project/copper-rs">Copper</a>.</em>
 </p>
 
 <p align="center">
   <a href="./SPEC.md">Specification</a> &bull;
   <a href="./SIMULATION.md">Simulation</a> &bull;
   <a href="./ROADMAP.md">Roadmap</a> &bull;
-  <a href="#quickstart">Quickstart</a> &bull;
-  <a href="#why-lair">Why LAIR?</a>
+  <a href="#quickstart">Quickstart</a>
 </p>
 
 ---
 
-## What is LAIR?
+> **v0.1-beta** &mdash; LAIR is in closed beta. The runtime, API surface, CLI, and message types work. Safety and simulation are architecturally defined but not yet enforced &mdash; the traits exist, the implementations are stubs. See [What's in v0.1-beta](#whats-in-v01-beta) for exactly what ships and what doesn't.
 
-LAIR is a robotics runtime for commercial and industrial deployments. It provides a clean, safety-oriented API on top of a battle-tested execution engine, targeting autonomous vehicles, warehouse robots, agricultural machines, and industrial automation.
+---
 
-**Built on [Copper](https://github.com/copper-project/copper-rs).** LAIR's runtime engine &mdash; the DAG scheduler, zero-copy message bus, deterministic clock, unified logging, and task execution model &mdash; is a maintained fork of the Copper robotics framework created by Gbin and the Copper contributors. Copper did the hard systems work; LAIR builds a production API, safety layer, and toolchain on top. See [Acknowledgments](#acknowledgments) for details.
+LAIR is a robotics runtime for commercial and industrial deployments &mdash; autonomous vehicles, warehouse robots, agricultural machines, industrial automation. It provides a clean API on top of a battle-tested execution engine, with an architecture designed for safety-critical systems from day one.
 
-### Core capabilities
+**Built on [Copper](https://github.com/copper-project/copper-rs).** The runtime engine &mdash; DAG scheduler, zero-copy message bus, deterministic clock, unified logging, task execution model &mdash; is a maintained fork of the Copper robotics framework created by [Gbin](https://github.com/gbin) and the Copper contributors. Copper did the hard systems work; LAIR builds a production API, safety layer, and toolchain on top. See [Acknowledgments](#acknowledgments).
 
-- **Deterministic execution** &mdash; DAG scheduler executes tasks in dependency order with sub-microsecond overhead
-- **Zero-copy message bus** &mdash; lock-free, bounded queues between tasks; no serialization on the hot path
-- **Unified logging** &mdash; every message, every state snapshot, captured in MCAP format for replay and analysis
-- **Compile-time graph validation** &mdash; task wiring errors are caught at `cargo build`, not at 2 AM in the field
-- **Rust-native** &mdash; memory safety, thread safety, `no_std` support for embedded targets
+### What you get
+
+- **Deterministic execution** &mdash; DAG scheduler, dependency-ordered, sub-microsecond overhead
+- **Zero-copy message bus** &mdash; lock-free bounded queues; no serialization on the hot path
+- **Compile-time graph validation** &mdash; wiring errors caught at `cargo build`, not at 2 AM in the field
+- **Unified logging** &mdash; every message and state snapshot in MCAP format for replay and analysis
 - **Mockable clock** &mdash; nanosecond-precision monotonic clock with mock support for deterministic testing
+- **Rust-native** &mdash; memory safety, thread safety, `no_std` support for embedded targets
 
 ---
 
@@ -41,7 +40,6 @@ LAIR is a robotics runtime for commercial and industrial deployments. It provide
 | Non-deterministic execution | Deterministic DAG scheduler, compile-time graph validation |
 | Serialization overhead on message bus | Zero-copy message passing between tasks |
 | Hard to replay and analyze logs | Unified MCAP logging with deterministic replay |
-| Weak safety guarantees | `SafetyValidator` trait, Biscuit physics guards (optional) |
 | No embedded story (MicroROS) | Same task traits for `std` and `no_std` targets |
 
 ---
@@ -189,7 +187,7 @@ See [`examples/simple_robot`](./examples/simple_robot) for the full working vers
 +-----------------------------------------------------------+
 |  +-----------------------------------------------------+  |
 |  |              BISCUIT SAFETY LAYER (optional)         |  |
-|  |     SafetyValidator trait, physics constraints       |  |
+|  |   SafetyValidator trait defined, not yet enforced    |  |
 |  +-----------------------------------------------------+  |
 +-----------------------------------------------------------+
 |                       LAIR API                            |
@@ -199,9 +197,30 @@ See [`examples/simple_robot`](./examples/simple_robot) for the full working vers
 |  DAG Scheduler | Zero-Copy Bus | MCAP Logging | Clock    |
 +-----------------------------------------------------------+
 |               HARDWARE / SIMULATION                       |
-|  Linux (Full)  |  no_std (Embedded)  |  Isaac Sim Bridge  |
+|  Linux / macOS / Windows  |  no_std  |  Isaac Sim Bridge  |
 +-----------------------------------------------------------+
 ```
+
+---
+
+## What's in v0.1-beta
+
+This is an honest accounting. "Working" means you can build against it today. "Stub" means the trait is defined and the architecture is in place, but the implementation is a passthrough.
+
+| Area | Status | Notes |
+|------|--------|-------|
+| DAG scheduler, zero-copy bus, clock, monitoring | **Working** | Copper engine, battle-tested |
+| LAIR API (`LairSource`, `LairTask`, `LairSink`, etc.) | **Working** | Type aliases + trait re-exports over Copper |
+| Message types (geometry, sensors, navigation, vehicle) | **Working** | Serialization roundtrip tested |
+| CLI (`lair new`, `build`, `run`, `doctor`) | **Working** | Project scaffolding, build/run wrappers, system checks |
+| Proc macros (`#[lair_task]`, `#[lair_runtime]`) | **Working** | `lair_task` auto-impls Freezable; `lair_runtime` delegates to Copper |
+| Safety validation | **Stub** | `SafetyValidator` trait defined, `NoOpSafetyValidator` passes everything |
+| Simulation bridge | **Stub** | `SimBridge` trait defined, `MockSimBridge` is in-memory only |
+| Fleet management, cloud sync | Not started | Planned for v0.2 |
+| Full Isaac Sim integration | Not started | Planned for v0.3 |
+| Certification tooling | Not started | Planned for v0.3 |
+
+The safety architecture is designed into LAIR from the ground up &mdash; every control command flows through a `SafetyValidator` before reaching actuators. What v0.1-beta doesn't have yet is a real validator that enforces physics constraints. That's coming.
 
 ---
 
@@ -232,36 +251,29 @@ lair/
 
 LAIR is part of the **Extelligence** ecosystem:
 
-| Project | Description | Status |
-|---------|-------------|--------|
-| **[Bagel](https://github.com/Extelligence-ai/bagel)** | Chat with your robot data | Logging integration (MCAP) |
-| **[Biscuit](https://github.com/Extelligence-ai/biscuit)** | Physics-constrained AI safety | `SafetyValidator` trait defined |
-| **[NVIDIA Isaac Sim](https://developer.nvidia.com/isaac/sim)** | Robotics simulation | `SimBridge` trait defined |
+| Project | Description | v0.1-beta Status |
+|---------|-------------|------------------|
+| **[Bagel](https://github.com/Extelligence-ai/bagel)** | Chat with your robot data | MCAP logging wired |
+| **[Biscuit](https://github.com/Extelligence-ai/biscuit)** | Physics-constrained AI safety | Trait defined, stub impl |
+| **[NVIDIA Isaac Sim](https://developer.nvidia.com/isaac/sim)** | Robotics simulation | Trait defined, mock impl |
 
 ---
 
-## Status
+## For Contributors
 
-LAIR is in **closed beta**. The core runtime works. The LAIR API surface, CLI, message types, and integration stubs are implemented. See the [ROADMAP.md](./ROADMAP.md) for what's next.
+This README is aimed at both **users** (robotics engineers evaluating LAIR) and **contributors** (developers building on or extending it).
 
-| Area | Status |
-|------|--------|
-| DAG scheduler, zero-copy bus, clock, monitoring | Working (Copper engine) |
-| LAIR API (`LairSource`, `LairTask`, `LairSink`, etc.) | Working |
-| Message types (geometry, sensors, navigation, vehicle) | Working, tested |
-| CLI (`lair new`, `lair build`, `lair run`, `lair doctor`) | Working |
-| Proc macros (`#[lair_task]`, `#[lair_runtime]`) | Working |
-| Safety validation (`SafetyValidator` trait) | Trait + no-op stub |
-| Simulation bridge (`SimBridge` trait) | Trait + mock stub |
-| Fleet management, cloud sync | Not started (v0.2) |
-| Isaac Sim full integration | Not started (v0.3) |
-| Certification tooling | Not started (v0.3) |
+If you're contributing:
+- The runtime engine lives in `crates/cu29-*` &mdash; this is forked Copper, modify carefully
+- The LAIR API layer lives in `crates/lair-*` &mdash; this is where most new work happens
+- `cargo check` must pass on the full workspace before submitting changes
+- `cargo test --workspace --exclude cu29-base-derive --exclude cu29-clock` runs the stable test suite
 
 ---
 
 ## Acknowledgments
 
-LAIR's runtime engine is a fork of **[Copper](https://github.com/copper-project/copper-rs)** (cu29), created by **Gbin** and the Copper contributors. Copper provides the foundational systems that make LAIR possible:
+LAIR's runtime engine is a fork of **[Copper](https://github.com/copper-project/copper-rs)** (cu29), created by **[Gbin](https://github.com/gbin)** and the Copper contributors. Copper provides the foundational systems that make LAIR possible:
 
 - **Deterministic DAG scheduler** &mdash; executes task graphs in dependency order
 - **Zero-copy message bus** &mdash; lock-free inter-task communication
