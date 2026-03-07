@@ -1,0 +1,13 @@
+[package]
+name = "simple-robot"
+description = "Minimal LAIR example: source → task → sink pipeline"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cu29 = { workspace = true }
+cu29-helpers = { workspace = true }
+lair-core = { workspace = true }
+serde = { workspace = true }

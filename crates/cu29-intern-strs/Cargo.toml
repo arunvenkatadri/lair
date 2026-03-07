@@ -1,0 +1,21 @@
+[package]
+name = "cu29-intern-strs"
+description = "This is loader for the intern strings logged at build time by LAIR. It can be used independently from the lair project."
+documentation = "https://docs.rs/cu29-intern-strs"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+bincode = { workspace = true, default-features = false, features = ["std"] }
+fs2 = "0.4"
+
+[features]
+# enables a more verbose build log showing the index generation.
+macro_debug = []

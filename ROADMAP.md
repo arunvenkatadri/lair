@@ -135,6 +135,16 @@ Q2 2026            Q3 2026           Q4 2026               2027
 
 **Goal:** Ready for ISO 26262, ISO 13482, IEC 62443.
 
+### Simulation (Isaac Sim Integration)
+| Feature | Priority | Status | Notes |
+|---------|----------|--------|-------|
+| Isaac Sim Python Bridge | P0 | 🔴 | PyO3-based FFI to Omniverse |
+| Simulated Sensors | P0 | 🔴 | Lidar, camera, IMU, GPS |
+| Headless Mode | P0 | 🔴 | CI/CD friendly |
+| Example Worlds | P0 | 🔴 | Warehouse, outdoor, factory |
+| Scenario Testing | P0 | 🔴 | Automated test scenarios |
+| USD/URDF Import | P1 | 🔴 | Load robot models |
+
 ### Scheduling
 | Feature | Priority | Status | Notes |
 |---------|----------|--------|-------|
@@ -158,11 +168,19 @@ Q2 2026            Q3 2026           Q4 2026               2027
 | Documentation Generation | P1 | 🔴 | Auto-generate compliance docs |
 | Security Hardening | P0 | 🔴 | IEC 62443 ready |
 
+### Simulation (Record/Replay)
+| Feature | Priority | Status | Notes |
+|---------|----------|--------|-------|
+| Parquet-based Recording | P0 | 🔴 | Bagel-compatible log format |
+| Replay Runtime | P0 | 🔴 | Play back recorded data |
+| Replay Sources | P0 | 🔴 | Virtual sensors from logs |
+| CLI Record/Replay | P0 | 🔴 | `lair record`, `lair replay` |
+
 ### Testing
 | Feature | Priority | Status | Notes |
 |---------|----------|--------|-------|
 | V-Model Test Framework | P0 | 🔴 | Requirements tracing |
-| Simulation Testing | P0 | 🔴 | Headless, CI-friendly |
+| Replay-based CI Tests | P0 | 🔴 | Automated regression testing |
 | Fault Injection | P1 | 🔴 | Test failure modes |
 
 ---
@@ -186,6 +204,15 @@ Q2 2026            Q3 2026           Q4 2026               2027
 | ML Model Registry | P1 | 🔴 | Version and deploy models |
 | Model Hot-Swap | P1 | 🔴 | Update models without restart |
 | A/B Testing | P2 | 🔴 | Test changes on subset |
+
+### Simulation (Production)
+| Feature | Priority | Status | Notes |
+|---------|----------|--------|-------|
+| Isaac Sim gRPC Bridge | P0 | 🔴 | Production-grade protocol |
+| Multi-Instance Sim | P1 | 🔴 | Fleet testing |
+| Hardware-in-Loop | P1 | 🔴 | Real HW + sim environment |
+| Synthetic Data Gen | P1 | 🔴 | Perception training pipeline |
+| Cosmos Integration | P2 | 🔴 | NVIDIA Cosmos for data gen |
 
 ---
 
@@ -211,13 +238,19 @@ Q2 2026            Q3 2026           Q4 2026               2027
 > Future evolution: True physical model for safety-critical systems (not LLM-based).
 > This would enable Biscuit for AV and other high-stakes domains.
 
+### Simulation (Alternative Platforms)
+| Feature | Priority | Notes |
+|---------|----------|-------|
+| Bevy Simulation | P2 | Open-source alternative for non-NVIDIA |
+| Multi-Robot Sim | P1 | Fleet coordination testing |
+| Digital Twin | P2 | Real-time sync with physical robots |
+
 ### Other Future Features
 | Feature | Notes |
 |---------|-------|
 | DDS Transport | ROS2 interoperability |
 | Behavior Trees | Visual behavior design |
-| Native Simulation | Bevy/Avian3D based |
-| Gazebo Bridge | Use existing worlds |
+| Gazebo Bridge | Legacy support if needed |
 
 ---
 

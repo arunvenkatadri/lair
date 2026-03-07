@@ -1,0 +1,17 @@
+[package]
+name = "lair-core"
+description = "LAIR core re-exports: traits, clock, and value types"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+cu29-traits = { workspace = true }
+cu29-clock = { workspace = true }
+cu29-value = { workspace = true }
+cu29-runtime = { workspace = true }

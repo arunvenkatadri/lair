@@ -1,0 +1,32 @@
+[package]
+name = "cu29-soa-derive"
+description = "This is fixed size implementation for SOAs (Struct of Arrays). It can be used independently from the LAIR project."
+documentation = "https://docs.rs/cu29-soa-derive"
+readme = "README.md"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+syn = { workspace = true }
+quote = { workspace = true }
+
+[dev-dependencies]
+bincode = { workspace = true }
+serde = { workspace = true }
+serde_derive = { workspace = true }
+serde_json = "1.0"
+rand = "0.10"
+
+[lib]
+proc-macro = true
+
+[features]
+default = []
+# enables a more verbose build log showing the code generation.
+macro_debug = []

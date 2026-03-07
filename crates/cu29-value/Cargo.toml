@@ -1,0 +1,30 @@
+[package]
+name = "cu29-value"
+description = "This is a fork of Value with custom types added for LAIR like the time and units."
+
+version.workspace = true
+edition.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+authors = ["arcnmx", "gbin"]
+
+readme = "README.md"
+keywords = ["serde"]
+license = "MIT"
+
+documentation = "https://docs.rs/cu29-value"
+
+[dependencies]
+cu29-clock = { workspace = true }
+
+bincode = { workspace = true }
+serde = { workspace = true }
+ordered-float = { version = "5.1", default-features = false }
+
+[dev-dependencies]
+serde_derive = { workspace = true }
+
+[features]
+default = ["std"]
+std = ["ordered-float/std", "cu29-clock/std"]

@@ -1,0 +1,15 @@
+[package]
+name = "cu29-reflect-derive"
+description = "No-op fallback derive for LAIR reflection when reflect is disabled"
+readme = "README.md"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[lib]
+proc-macro = true

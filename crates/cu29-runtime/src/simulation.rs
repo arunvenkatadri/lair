@@ -1,0 +1,422 @@
+//! # `cu29::simulation` Module
+//!
+//! The `cu29::simulation` module provides an interface to simulate tasks in Copper-based systems.
+//! It offers structures, traits, and enums that enable hooking into the lifecycle of tasks, adapting
+//! their behavior, and integrating them with simulated hardware environments.
+//!
+//! ## Overview
+//!
+//! This module is specifically designed to manage the lifecycle of tasks during simulation, allowing
+//! users to override specific simulation steps and simulate sensor data or hardware interaction using
+//! placeholders for real drivers. It includes the following components:
+//!
+//! - **`CuTaskCallbackState`**: Represents the lifecycle states of tasks during simulation.
+//! - **`SimOverride`**: Defines how the simulator should handle specific task callbacks, either
+//!   executing the logic in the simulator or deferring to the real implementation.
+//!
+//! ## Hooking Simulation Events
+//!
+//! You can control and simulate task behavior using a callback mechanism. A task in the Copper framework
+//! has a lifecycle, and for each stage of the lifecycle, a corresponding callback state is passed to
+//! the simulation. This allows you to inject custom logic for each task stage.
+//!
+//! ### `CuTaskCallbackState` Enum
+//!
+//! The `CuTaskCallbackState` enum represents different stages in the lifecycle of a Copper task during a simulation:
+//!
+//! - **`New(Option<ComponentConfig>)`**: Triggered when a task is created. Use this state to adapt the simulation
+//!   to a specific component configuration if needed.
+//! - **`Start`**: Triggered when a task starts. This state allows you to initialize or set up any necessary data
+//!   before the task processes any input.
+//! - **`Preprocess`**: Called before the main processing step. Useful for preparing or validating data.
+//! - **`Process(I, O)`**: The core processing state, where you can handle the input (`I`) and output (`O`) of
+//!   the task. For source tasks, `I` is `CuMsg<()>`, and for sink tasks, `O` is `CuMsg<()>`.
+//! - **`Postprocess`**: Called after the main processing step. Allows for cleanup or final adjustments.
+//! - **`Stop`**: Triggered when a task is stopped. Use this to finalize any data or state before task termination.
+//!
+//! ### Example Usage: Callback
+//!
+//! You can combine the expressiveness of the enum matching to intercept and override the task lifecycle for the simulation.
+//!
+//! ```rust,ignore
+//! let mut sim_callback = move |step: SimStep<'_>| -> SimOverride {
+//!     match step {
+//!         // Handle the creation of source tasks, potentially adapting the simulation based on configuration
+//!         SimStep::SourceTask(CuTaskCallbackState::New(Some(config))) => {
+//!             println!("Creating Source Task with configuration: {:?}", config);
+//!             // You can adapt the simulation using the configuration here
+//!             SimOverride::ExecuteByRuntime
+//!         }
+//!         SimStep::SourceTask(CuTaskCallbackState::New(None)) => {
+//!             println!("Creating Source Task without configuration.");
+//!             SimOverride::ExecuteByRuntime
+//!         }
+//!         // Handle the processing step for sink tasks, simulating the response
+//!         SimStep::SinkTask(CuTaskCallbackState::Process(input, output)) => {
+//!             println!("Processing Sink Task...");
+//!             println!("Received input: {:?}", input);
+//!
+//!             // Simulate a response by setting the output payload
+//!             output.set_payload(your_simulated_response());
+//!             println!("Set simulated output for Sink Task.");
+//!
+//!             SimOverride::ExecutedBySim
+//!         }
+//!         // Generic handling for other phases like Start, Preprocess, Postprocess, or Stop
+//!         SimStep::SourceTask(CuTaskCallbackState::Start)
+//!         | SimStep::SinkTask(CuTaskCallbackState::Start) => {
+//!             println!("Task started.");
+//!             SimOverride::ExecuteByRuntime
+//!         }
+//!         SimStep::SourceTask(CuTaskCallbackState::Stop)
+//!         | SimStep::SinkTask(CuTaskCallbackState::Stop) => {
+//!             println!("Task stopped.");
+//!             SimOverride::ExecuteByRuntime
+//!         }
+//!         // Default fallback for any unhandled cases
+//!         _ => {
+//!             println!("Unhandled simulation step: {:?}", step);
+//!             SimOverride::ExecuteByRuntime
+//!         }
+//!     }
+//! };
+//! ```
+//!
+//! In this example, `example_callback` is a function that matches against the current step in the simulation and
+//! determines if the simulation should handle it (`SimOverride::ExecutedBySim`) or defer to the runtime's real
+//! implementation (`SimOverride::ExecuteByRuntime`).
+//!
+//! ## Task Simulation with `CuSimSrcTask` and `CuSimSinkTask`
+//!
+//! The module provides placeholder tasks for source and sink tasks, which do not interact with real hardware but
+//! instead simulate the presence of it.
+//!
+//! - **`CuSimSrcTask<T>`**: A placeholder for a source task that simulates a sensor or data acquisition hardware.
+//!   This task provides the ability to simulate incoming data without requiring actual hardware initialization.
+//!
+//! - **`CuSimSinkTask<T>`**: A placeholder for a sink task that simulates sending data to hardware. It serves as a
+//!   mock for hardware actuators or output devices during simulations.
+//!
+//! ## Controlling Simulation Flow: `SimOverride` Enum
+//!
+//! The `SimOverride` enum is used to control how the simulator should proceed at each step. This allows
+//! for fine-grained control of task behavior in the simulation context:
+//!
+//! - **`ExecutedBySim`**: Indicates that the simulator has handled the task logic, and the real implementation
+//!   should be skipped.
+//! - **`ExecuteByRuntime`**: Indicates that the real implementation should proceed as normal.
+//!
+
+use crate::config::ComponentConfig;
+use crate::context::CuContext;
+use crate::cubridge::{
+    BridgeChannel, BridgeChannelConfig, BridgeChannelInfo, BridgeChannelSet, CuBridge,
+};
+use crate::cutask::CuMsgPack;
+
+use crate::cutask::{CuMsg, CuMsgPayload, CuSinkTask, CuSrcTask, Freezable};
+use crate::reflect::{Reflect, TypePath};
+use crate::{input_msg, output_msg};
+use bincode::de::Decoder;
+use bincode::enc::Encoder;
+use bincode::error::{DecodeError, EncodeError};
+use bincode::{Decode, Encode};
+use core::marker::PhantomData;
+use cu29_traits::CuResult;
+
+/// This is the state that will be passed to the simulation support to hook
+/// into the lifecycle of the tasks.
+pub enum CuTaskCallbackState<I, O> {
+    /// Callbacked when a task is created.
+    /// It gives you the opportunity to adapt the sim to the given config.
+    New(Option<ComponentConfig>),
+    /// Callbacked when a task is started.
+    Start,
+    /// Callbacked when a task is getting called on pre-process.
+    Preprocess,
+    /// Callbacked when a task is getting called on process.
+    /// I and O are the input and output messages of the task.
+    /// if this is a source task, I will be CuMsg<()>
+    /// if this is a sink task, O will be CuMsg<()>
+    Process(I, O),
+    /// Callbacked when a task is getting called on post-process.
+    Postprocess,
+    /// Callbacked when a task is stopped.
+    Stop,
+}
+
+/// This is the answer the simulator can give to control the simulation flow.
+#[derive(PartialEq)]
+pub enum SimOverride {
+    /// The callback took care of the logic on the simulation side and the actual
+    /// implementation needs to be skipped.
+    ExecutedBySim,
+    /// The actual implementation needs to be executed.
+    ExecuteByRuntime,
+    /// Emulated the behavior of an erroring task (same as return Err(..) in the normal tasks methods).
+    Errored(String),
+}
+
+/// Lifecycle callbacks for bridges when running in simulation.
+///
+/// These mirror the CuBridge trait hooks so a simulator can choose to
+/// bypass the real implementation (e.g. to avoid opening hardware) or
+/// inject faults.
+pub enum CuBridgeLifecycleState {
+    /// The bridge is about to be constructed. Gives access to config.
+    New(Option<ComponentConfig>),
+    /// The bridge is starting.
+    Start,
+    /// Called before the I/O cycle.
+    Preprocess,
+    /// Called after the I/O cycle.
+    Postprocess,
+    /// The bridge is stopping.
+    Stop,
+}
+
+/// This is a placeholder task for a source task for the simulations.
+/// It basically does nothing in place of a real driver so it won't try to initialize any hardware.
+#[derive(Reflect)]
+#[reflect(no_field_bounds, from_reflect = false, type_path = false)]
+pub struct CuSimSrcTask<T> {
+    #[reflect(ignore)]
+    boo: PhantomData<fn() -> T>,
+    state: bool,
+}
+
+impl<T: 'static> TypePath for CuSimSrcTask<T> {
+    fn type_path() -> &'static str {
+        "cu29_runtime::simulation::CuSimSrcTask"
+    }
+
+    fn short_type_path() -> &'static str {
+        "CuSimSrcTask"
+    }
+
+    fn type_ident() -> Option<&'static str> {
+        Some("CuSimSrcTask")
+    }
+
+    fn crate_name() -> Option<&'static str> {
+        Some("cu29_runtime")
+    }
+
+    fn module_path() -> Option<&'static str> {
+        Some("simulation")
+    }
+}
+
+impl<T> Freezable for CuSimSrcTask<T> {
+    fn freeze<E: Encoder>(&self, encoder: &mut E) -> Result<(), EncodeError> {
+        Encode::encode(&self.state, encoder)
+    }
+
+    fn thaw<D: Decoder>(&mut self, decoder: &mut D) -> Result<(), DecodeError> {
+        self.state = Decode::decode(decoder)?;
+        Ok(())
+    }
+}
+
+impl<T: CuMsgPayload + 'static> CuSrcTask for CuSimSrcTask<T> {
+    type Resources<'r> = ();
+    type Output<'m> = output_msg!(T);
+
+    fn new(_config: Option<&ComponentConfig>, _resources: Self::Resources<'_>) -> CuResult<Self>
+    where
+        Self: Sized,
+    {
+        // Default to true to mirror typical source initial state; deterministic across runs.
+        Ok(Self {
+            boo: PhantomData,
+            state: true,
+        })
+    }
+
+    fn process(&mut self, _ctx: &CuContext, _new_msg: &mut Self::Output<'_>) -> CuResult<()> {
+        unimplemented!(
+            "A placeholder for sim was called for a source, you need answer SimOverride to ExecutedBySim for the Process step."
+        )
+    }
+}
+
+impl<T> CuSimSrcTask<T> {
+    /// Placeholder hook for simulation-driven sources.
+    ///
+    /// In the sim placeholder we don't advance any internal state because the
+    /// simulator is responsible for providing deterministic outputs and state
+    /// snapshots are carried by the real task (when run_in_sim = true).
+    /// Keeping this as a no-op avoids baking any fake behavior into keyframes.
+    pub fn sim_tick(&mut self) {}
+}
+
+/// Helper to map a payload type (or tuple of payload types) to the corresponding `input_msg!` form.
+pub trait CuSimSinkInput {
+    type With<'m>: CuMsgPack
+    where
+        Self: 'm;
+}
+
+macro_rules! impl_sim_sink_input_tuple {
+    ($($name:ident),+) => {
+        impl<$($name: CuMsgPayload),+> CuSimSinkInput for ($($name,)+) {
+            type With<'m> = input_msg!('m, $($name),+) where Self: 'm;
+        }
+    };
+}
+
+impl_sim_sink_input_tuple!(T1);
+impl_sim_sink_input_tuple!(T1, T2);
+impl_sim_sink_input_tuple!(T1, T2, T3);
+impl_sim_sink_input_tuple!(T1, T2, T3, T4);
+impl_sim_sink_input_tuple!(T1, T2, T3, T4, T5);
+
+/// This is a placeholder task for a sink task for the simulations.
+/// It basically does nothing in place of a real driver so it won't try to initialize any hardware.
+#[derive(Reflect)]
+#[reflect(no_field_bounds, from_reflect = false, type_path = false)]
+pub struct CuSimSinkTask<I> {
+    #[reflect(ignore)]
+    boo: PhantomData<fn() -> I>,
+}
+
+impl<I: 'static> TypePath for CuSimSinkTask<I> {
+    fn type_path() -> &'static str {
+        "cu29_runtime::simulation::CuSimSinkTask"
+    }
+
+    fn short_type_path() -> &'static str {
+        "CuSimSinkTask"
+    }
+
+    fn type_ident() -> Option<&'static str> {
+        Some("CuSimSinkTask")
+    }
+
+    fn crate_name() -> Option<&'static str> {
+        Some("cu29_runtime")
+    }
+
+    fn module_path() -> Option<&'static str> {
+        Some("simulation")
+    }
+}
+
+impl<I> Freezable for CuSimSinkTask<I> {}
+
+impl<I: CuSimSinkInput + 'static> CuSinkTask for CuSimSinkTask<I> {
+    type Resources<'r> = ();
+    type Input<'m> = <I as CuSimSinkInput>::With<'m>;
+
+    fn new(_config: Option<&ComponentConfig>, _resources: Self::Resources<'_>) -> CuResult<Self>
+    where
+        Self: Sized,
+    {
+        Ok(Self { boo: PhantomData })
+    }
+
+    fn process(&mut self, _ctx: &CuContext, _input: &Self::Input<'_>) -> CuResult<()> {
+        unimplemented!(
+            "A placeholder for sim was called for a sink, you need answer SimOverride to ExecutedBySim for the Process step."
+        )
+    }
+}
+
+/// Empty channel-id enum used when a simulated bridge has no channel on one side.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum CuNoBridgeChannelId {}
+
+/// Empty channel set used when a simulated bridge has no channel on one side.
+pub struct CuNoBridgeChannels;
+
+impl BridgeChannelSet for CuNoBridgeChannels {
+    type Id = CuNoBridgeChannelId;
+
+    const STATIC_CHANNELS: &'static [&'static dyn BridgeChannelInfo<Self::Id>] = &[];
+}
+
+/// Placeholder bridge used in simulation when a bridge is configured with
+/// `run_in_sim: false`.
+///
+/// This bridge is parameterized directly by the Tx/Rx channel sets generated
+/// from configuration, so the original bridge type does not need to compile in
+/// simulation mode.
+#[derive(Reflect)]
+#[reflect(no_field_bounds, from_reflect = false, type_path = false)]
+pub struct CuSimBridge<Tx: BridgeChannelSet + 'static, Rx: BridgeChannelSet + 'static> {
+    #[reflect(ignore)]
+    boo: PhantomData<fn() -> (Tx, Rx)>,
+}
+
+impl<Tx: BridgeChannelSet + 'static, Rx: BridgeChannelSet + 'static> TypePath
+    for CuSimBridge<Tx, Rx>
+{
+    fn type_path() -> &'static str {
+        "cu29_runtime::simulation::CuSimBridge"
+    }
+
+    fn short_type_path() -> &'static str {
+        "CuSimBridge"
+    }
+
+    fn type_ident() -> Option<&'static str> {
+        Some("CuSimBridge")
+    }
+
+    fn crate_name() -> Option<&'static str> {
+        Some("cu29_runtime")
+    }
+
+    fn module_path() -> Option<&'static str> {
+        Some("simulation")
+    }
+}
+
+impl<Tx: BridgeChannelSet + 'static, Rx: BridgeChannelSet + 'static> Freezable
+    for CuSimBridge<Tx, Rx>
+{
+}
+
+impl<Tx: BridgeChannelSet + 'static, Rx: BridgeChannelSet + 'static> CuBridge
+    for CuSimBridge<Tx, Rx>
+{
+    type Tx = Tx;
+    type Rx = Rx;
+    type Resources<'r> = ();
+
+    fn new(
+        _config: Option<&ComponentConfig>,
+        _tx_channels: &[BridgeChannelConfig<<Self::Tx as BridgeChannelSet>::Id>],
+        _rx_channels: &[BridgeChannelConfig<<Self::Rx as BridgeChannelSet>::Id>],
+        _resources: Self::Resources<'_>,
+    ) -> CuResult<Self>
+    where
+        Self: Sized,
+    {
+        Ok(Self { boo: PhantomData })
+    }
+
+    fn send<'a, Payload>(
+        &mut self,
+        _ctx: &CuContext,
+        _channel: &'static BridgeChannel<<Self::Tx as BridgeChannelSet>::Id, Payload>,
+        _msg: &CuMsg<Payload>,
+    ) -> CuResult<()>
+    where
+        Payload: CuMsgPayload + 'a,
+    {
+        Ok(())
+    }
+
+    fn receive<'a, Payload>(
+        &mut self,
+        _ctx: &CuContext,
+        _channel: &'static BridgeChannel<<Self::Rx as BridgeChannelSet>::Id, Payload>,
+        _msg: &mut CuMsg<Payload>,
+    ) -> CuResult<()>
+    where
+        Payload: CuMsgPayload + 'a,
+    {
+        Ok(())
+    }
+}

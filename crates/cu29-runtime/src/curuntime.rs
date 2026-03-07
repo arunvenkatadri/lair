@@ -1,0 +1,1481 @@
+//! CuRuntime is the heart of what copper is running on the robot.
+//! It is exposed to the user via the `copper_runtime` macro injecting it as a field in their application struct.
+//!
+
+use crate::config::{ComponentConfig, CuDirection, DEFAULT_KEYFRAME_INTERVAL, Node};
+use crate::config::{CuConfig, CuGraph, NodeId, RuntimeConfig};
+use crate::copperlist::{CopperList, CopperListState, CuListZeroedInit, CuListsManager};
+use crate::cutask::{BincodeAdapter, Freezable};
+#[cfg(feature = "std")]
+use crate::monitoring::ExecutionProbeHandle;
+#[cfg(feature = "std")]
+use crate::monitoring::MonitorExecutionProbe;
+use crate::monitoring::{
+    CopperListInfo, CuMonitor, CuMonitoringMetadata, CuMonitoringRuntime, ExecutionMarker,
+    MonitorComponentMetadata, RuntimeExecutionProbe, build_monitor_topology,
+};
+use crate::resource::ResourceManager;
+use compact_str::CompactString;
+use cu29_clock::{ClockProvider, CuTime, RobotClock};
+use cu29_traits::CuResult;
+use cu29_traits::WriteStream;
+use cu29_traits::{CopperListTuple, CuError};
+
+#[cfg(target_os = "none")]
+#[allow(unused_imports)]
+use cu29_log::{ANONYMOUS, CuLogEntry, CuLogLevel};
+#[cfg(target_os = "none")]
+#[allow(unused_imports)]
+use cu29_log_derive::info;
+#[cfg(target_os = "none")]
+#[allow(unused_imports)]
+use cu29_log_runtime::log;
+#[cfg(all(target_os = "none", debug_assertions))]
+#[allow(unused_imports)]
+use cu29_log_runtime::log_debug_mode;
+#[cfg(target_os = "none")]
+#[allow(unused_imports)]
+use cu29_value::to_value;
+
+use alloc::boxed::Box;
+use alloc::collections::{BTreeSet, VecDeque};
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+use bincode::enc::EncoderImpl;
+use bincode::enc::write::{SizeWriter, SliceWriter};
+use bincode::error::EncodeError;
+use bincode::{Decode, Encode};
+use core::fmt::Result as FmtResult;
+use core::fmt::{Debug, Formatter};
+
+#[cfg(feature = "std")]
+use cu29_log_runtime::LoggerRuntime;
+#[cfg(feature = "std")]
+use cu29_unifiedlog::UnifiedLoggerWrite;
+#[cfg(feature = "std")]
+use std::sync::{Arc, Mutex};
+
+/// Just a simple struct to hold the various bits needed to run a Copper application.
+#[cfg(feature = "std")]
+pub struct CopperContext {
+    pub unified_logger: Arc<Mutex<UnifiedLoggerWrite>>,
+    pub logger_runtime: LoggerRuntime,
+    pub clock: RobotClock,
+}
+
+/// Manages the lifecycle of the copper lists and logging.
+pub struct CopperListsManager<P: CopperListTuple + Default, const NBCL: usize> {
+    pub inner: CuListsManager<P, NBCL>,
+    /// Logger for the copper lists (messages between tasks)
+    pub logger: Option<Box<dyn WriteStream<CopperList<P>>>>,
+    /// Last encoded size returned by logger.log
+    pub last_encoded_bytes: u64,
+}
+
+impl<P: CopperListTuple + Default, const NBCL: usize> CopperListsManager<P, NBCL> {
+    pub fn end_of_processing(&mut self, culistid: u64) -> CuResult<()> {
+        let mut is_top = true;
+        let mut nb_done = 0;
+        for cl in self.inner.iter_mut() {
+            if cl.id == culistid && cl.get_state() == CopperListState::Processing {
+                cl.change_state(CopperListState::DoneProcessing);
+            }
+            if is_top && cl.get_state() == CopperListState::DoneProcessing {
+                if let Some(logger) = &mut self.logger {
+                    cl.change_state(CopperListState::BeingSerialized);
+                    logger.log(cl)?;
+                    self.last_encoded_bytes = logger.last_log_bytes().unwrap_or(0) as u64;
+                }
+                cl.change_state(CopperListState::Free);
+                nb_done += 1;
+            } else {
+                is_top = false;
+            }
+        }
+        for _ in 0..nb_done {
+            let _ = self.inner.pop();
+        }
+        Ok(())
+    }
+
+    pub fn available_copper_lists(&self) -> usize {
+        NBCL - self.inner.len()
+    }
+}
+
+/// Manages the frozen tasks state and logging.
+pub struct KeyFramesManager {
+    /// Where the serialized tasks are stored following the wave of execution of a CL.
+    inner: KeyFrame,
+
+    /// Optional override for the timestamp to stamp the next keyframe (used by deterministic replay).
+    forced_timestamp: Option<CuTime>,
+
+    /// If set, reuse this keyframe verbatim (e.g., during replay) instead of re-freezing state.
+    locked: bool,
+
+    /// Logger for the state of the tasks (frozen tasks)
+    logger: Option<Box<dyn WriteStream<KeyFrame>>>,
+
+    /// Capture a keyframe only each...
+    keyframe_interval: u32,
+
+    /// Bytes written by the last keyframe log
+    pub last_encoded_bytes: u64,
+}
+
+impl KeyFramesManager {
+    fn is_keyframe(&self, culistid: u64) -> bool {
+        self.logger.is_some() && culistid.is_multiple_of(self.keyframe_interval as u64)
+    }
+
+    pub fn reset(&mut self, culistid: u64, clock: &RobotClock) {
+        if self.is_keyframe(culistid) {
+            // If a recorded keyframe was preloaded for this CL, keep it as-is.
+            if self.locked && self.inner.culistid == culistid {
+                return;
+            }
+            let ts = self.forced_timestamp.take().unwrap_or_else(|| clock.now());
+            self.inner.reset(culistid, ts);
+            self.locked = false;
+        }
+    }
+
+    /// Force the timestamp of the next keyframe to a given value.
+    #[cfg(feature = "std")]
+    pub fn set_forced_timestamp(&mut self, ts: CuTime) {
+        self.forced_timestamp = Some(ts);
+    }
+
+    pub fn freeze_task(&mut self, culistid: u64, task: &impl Freezable) -> CuResult<usize> {
+        if self.is_keyframe(culistid) {
+            if self.locked {
+                // We are replaying a recorded keyframe verbatim; don't mutate it.
+                return Ok(0);
+            }
+            if self.inner.culistid != culistid {
+                return Err(CuError::from(format!(
+                    "Freezing task for culistid {} but current keyframe is {}",
+                    culistid, self.inner.culistid
+                )));
+            }
+            self.inner
+                .add_frozen_task(task)
+                .map_err(|e| CuError::from(format!("Failed to serialize task: {e}")))
+        } else {
+            Ok(0)
+        }
+    }
+
+    /// Generic helper to freeze any `Freezable` state (task or bridge) into the current keyframe.
+    pub fn freeze_any(&mut self, culistid: u64, item: &impl Freezable) -> CuResult<usize> {
+        self.freeze_task(culistid, item)
+    }
+
+    pub fn end_of_processing(&mut self, culistid: u64) -> CuResult<()> {
+        if self.is_keyframe(culistid) {
+            let logger = self.logger.as_mut().unwrap();
+            logger.log(&self.inner)?;
+            self.last_encoded_bytes = logger.last_log_bytes().unwrap_or(0) as u64;
+            // Clear the lock so the next CL can rebuild normally unless re-locked.
+            self.locked = false;
+            Ok(())
+        } else {
+            // Not a keyframe for this CL; ensure we don't carry stale sizes forward.
+            self.last_encoded_bytes = 0;
+            Ok(())
+        }
+    }
+
+    /// Preload a recorded keyframe so it is logged verbatim on the matching CL.
+    #[cfg(feature = "std")]
+    pub fn lock_keyframe(&mut self, keyframe: &KeyFrame) {
+        self.inner = keyframe.clone();
+        self.forced_timestamp = Some(keyframe.timestamp);
+        self.locked = true;
+    }
+}
+
+/// This is the main structure that will be injected as a member of the Application struct.
+/// CT is the tuple of all the tasks in order of execution.
+/// CL is the type of the copper list, representing the input/output messages for all the tasks.
+pub struct CuRuntime<CT, CB, P: CopperListTuple, M: CuMonitor, const NBCL: usize> {
+    /// The base clock the runtime will be using to record time.
+    pub clock: RobotClock, // TODO: remove public at some point
+
+    /// The tuple of all the tasks in order of execution.
+    pub tasks: CT,
+
+    /// Tuple of all instantiated bridges.
+    pub bridges: CB,
+
+    /// Resource registry kept alive for tasks borrowing shared handles.
+    pub resources: ResourceManager,
+
+    /// The runtime monitoring.
+    pub monitor: M,
+
+    /// Runtime-side execution progress probe for watchdog/diagnostic monitors.
+    ///
+    /// This probe is written from the generated execution plan before each component
+    /// step. Monitors consume it asynchronously (typically from watchdog threads) to
+    /// report the last known component/step/culist when the runtime appears stalled.
+    #[cfg(feature = "std")]
+    pub execution_probe: ExecutionProbeHandle,
+    #[cfg(not(feature = "std"))]
+    pub execution_probe: RuntimeExecutionProbe,
+
+    /// The logger for the copper lists (messages between tasks)
+    pub copperlists_manager: CopperListsManager<P, NBCL>,
+
+    /// The logger for the state of the tasks (frozen tasks)
+    pub keyframes_manager: KeyFramesManager,
+
+    /// The runtime configuration controlling the behavior of the run loop
+    pub runtime_config: RuntimeConfig,
+}
+
+/// To be able to share the clock we make the runtime a clock provider.
+impl<CT, CB, P: CopperListTuple + CuListZeroedInit + Default, M: CuMonitor, const NBCL: usize>
+    ClockProvider for CuRuntime<CT, CB, P, M, NBCL>
+{
+    fn get_clock(&self) -> RobotClock {
+        self.clock.clone()
+    }
+}
+
+/// A KeyFrame is recording a snapshot of the tasks state before a given copperlist.
+/// It is a double encapsulation: this one recording the culistid and another even in
+/// bincode in the serialized_tasks.
+#[derive(Clone, Encode, Decode)]
+pub struct KeyFrame {
+    // This is the id of the copper list that this keyframe is associated with (recorded before the copperlist).
+    pub culistid: u64,
+    // This is the timestamp when the keyframe was created, using the robot clock.
+    pub timestamp: CuTime,
+    // This is the bincode representation of the tuple of all the tasks.
+    pub serialized_tasks: Vec<u8>,
+}
+
+impl KeyFrame {
+    fn new() -> Self {
+        KeyFrame {
+            culistid: 0,
+            timestamp: CuTime::default(),
+            serialized_tasks: Vec::new(),
+        }
+    }
+
+    /// This is to be able to avoid reallocations
+    fn reset(&mut self, culistid: u64, timestamp: CuTime) {
+        self.culistid = culistid;
+        self.timestamp = timestamp;
+        self.serialized_tasks.clear();
+    }
+
+    /// We need to be able to accumulate tasks to the serialization as they are executed after the step.
+    fn add_frozen_task(&mut self, task: &impl Freezable) -> Result<usize, EncodeError> {
+        let cfg = bincode::config::standard();
+        let mut sizer = EncoderImpl::<_, _>::new(SizeWriter::default(), cfg);
+        BincodeAdapter(task).encode(&mut sizer)?;
+        let need = sizer.into_writer().bytes_written as usize;
+
+        let start = self.serialized_tasks.len();
+        self.serialized_tasks.resize(start + need, 0);
+        let mut enc =
+            EncoderImpl::<_, _>::new(SliceWriter::new(&mut self.serialized_tasks[start..]), cfg);
+        BincodeAdapter(task).encode(&mut enc)?;
+        Ok(need)
+    }
+}
+
+/// Identifies where the effective runtime configuration came from.
+#[derive(Clone, Encode, Decode, Debug, PartialEq, Eq)]
+pub enum RuntimeLifecycleConfigSource {
+    ProgrammaticOverride,
+    ExternalFile,
+    BundledDefault,
+}
+
+/// Build-time stack identification metadata.
+#[derive(Clone, Encode, Decode, Debug, PartialEq, Eq)]
+pub struct RuntimeLifecycleStackInfo {
+    pub app_name: String,
+    pub app_version: String,
+    pub git_commit: Option<String>,
+    pub git_dirty: Option<bool>,
+}
+
+/// Runtime lifecycle events emitted in the dedicated lifecycle section.
+#[derive(Clone, Encode, Decode, Debug, PartialEq, Eq)]
+pub enum RuntimeLifecycleEvent {
+    Instantiated {
+        config_source: RuntimeLifecycleConfigSource,
+        effective_config_ron: String,
+        stack: RuntimeLifecycleStackInfo,
+    },
+    MissionStarted {
+        mission: String,
+    },
+    MissionStopped {
+        mission: String,
+        // TODO(lifecycle): replace free-form reason with a typed stop reason enum once
+        // std/no-std behavior and panic integration are split in a follow-up PR.
+        reason: String,
+    },
+    // TODO(lifecycle): wire panic hook / no_std equivalent to emit this event consistently.
+    Panic {
+        message: String,
+        file: Option<String>,
+        line: Option<u32>,
+        column: Option<u32>,
+    },
+    ShutdownCompleted,
+}
+
+/// One event record persisted in the `UnifiedLogType::RuntimeLifecycle` section.
+#[derive(Clone, Encode, Decode, Debug, PartialEq, Eq)]
+pub struct RuntimeLifecycleRecord {
+    pub timestamp: CuTime,
+    pub event: RuntimeLifecycleEvent,
+}
+
+impl<
+    CT,
+    CB,
+    P: CopperListTuple + CuListZeroedInit + Default + 'static,
+    M: CuMonitor,
+    const NBCL: usize,
+> CuRuntime<CT, CB, P, M, NBCL>
+{
+    /// Records runtime execution progress in the shared probe.
+    ///
+    /// This is intentionally lightweight and does not call monitor callbacks.
+    #[inline]
+    pub fn record_execution_marker(&self, marker: ExecutionMarker) {
+        self.execution_probe.record(marker);
+    }
+
+    // FIXME(gbin): this became REALLY ugly with no-std
+    #[allow(clippy::too_many_arguments)]
+    #[cfg(feature = "std")]
+    pub fn new(
+        clock: RobotClock,
+        config: &CuConfig,
+        mission: &str,
+        resources_instanciator: impl Fn(&CuConfig) -> CuResult<ResourceManager>,
+        tasks_instanciator: impl for<'c> Fn(
+            Vec<Option<&'c ComponentConfig>>,
+            &mut ResourceManager,
+        ) -> CuResult<CT>,
+        monitored_components: &'static [MonitorComponentMetadata],
+        culist_component_mapping: &'static [usize],
+        monitor_instanciator: impl Fn(&CuConfig, CuMonitoringMetadata, CuMonitoringRuntime) -> M,
+        bridges_instanciator: impl Fn(&CuConfig, &mut ResourceManager) -> CuResult<CB>,
+        copperlists_logger: impl WriteStream<CopperList<P>> + 'static,
+        keyframes_logger: impl WriteStream<KeyFrame> + 'static,
+    ) -> CuResult<Self> {
+        let resources = resources_instanciator(config)?;
+        Self::new_with_resources(
+            clock,
+            config,
+            mission,
+            resources,
+            tasks_instanciator,
+            monitored_components,
+            culist_component_mapping,
+            monitor_instanciator,
+            bridges_instanciator,
+            copperlists_logger,
+            keyframes_logger,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[cfg(feature = "std")]
+    pub fn new_with_resources(
+        clock: RobotClock,
+        config: &CuConfig,
+        mission: &str,
+        mut resources: ResourceManager,
+        tasks_instanciator: impl for<'c> Fn(
+            Vec<Option<&'c ComponentConfig>>,
+            &mut ResourceManager,
+        ) -> CuResult<CT>,
+        monitored_components: &'static [MonitorComponentMetadata],
+        culist_component_mapping: &'static [usize],
+        monitor_instanciator: impl Fn(&CuConfig, CuMonitoringMetadata, CuMonitoringRuntime) -> M,
+        bridges_instanciator: impl Fn(&CuConfig, &mut ResourceManager) -> CuResult<CB>,
+        copperlists_logger: impl WriteStream<CopperList<P>> + 'static,
+        keyframes_logger: impl WriteStream<KeyFrame> + 'static,
+    ) -> CuResult<Self> {
+        let graph = config.get_graph(Some(mission))?;
+        let all_instances_configs: Vec<Option<&ComponentConfig>> = graph
+            .get_all_nodes()
+            .iter()
+            .map(|(_, node)| node.get_instance_config())
+            .collect();
+
+        let tasks = tasks_instanciator(all_instances_configs, &mut resources)?;
+        let execution_probe = std::sync::Arc::new(RuntimeExecutionProbe::default());
+        let monitor_metadata = CuMonitoringMetadata::new(
+            CompactString::from(mission),
+            monitored_components,
+            culist_component_mapping,
+            CopperListInfo::new(core::mem::size_of::<CopperList<P>>(), NBCL),
+            build_monitor_topology(config, mission)?,
+            None,
+        )?;
+        let monitor_runtime =
+            CuMonitoringRuntime::new(MonitorExecutionProbe::from_shared(execution_probe.clone()));
+        let monitor = monitor_instanciator(config, monitor_metadata, monitor_runtime);
+        let bridges = bridges_instanciator(config, &mut resources)?;
+
+        let (copperlists_logger, keyframes_logger, keyframe_interval) = match &config.logging {
+            Some(logging_config) if logging_config.enable_task_logging => (
+                Some(Box::new(copperlists_logger) as Box<dyn WriteStream<CopperList<P>>>),
+                Some(Box::new(keyframes_logger) as Box<dyn WriteStream<KeyFrame>>),
+                logging_config.keyframe_interval.unwrap(), // it is set to a default at parsing time
+            ),
+            Some(_) => (None, None, 0), // explicit no enable logging
+            None => (
+                // default
+                Some(Box::new(copperlists_logger) as Box<dyn WriteStream<CopperList<P>>>),
+                Some(Box::new(keyframes_logger) as Box<dyn WriteStream<KeyFrame>>),
+                DEFAULT_KEYFRAME_INTERVAL,
+            ),
+        };
+
+        let copperlists_manager = CopperListsManager {
+            inner: CuListsManager::new(),
+            logger: copperlists_logger,
+            last_encoded_bytes: 0,
+        };
+        #[cfg(target_os = "none")]
+        {
+            let cl_size = core::mem::size_of::<CopperList<P>>();
+            let total_bytes = cl_size.saturating_mul(NBCL);
+            info!(
+                "CuRuntime::new: copperlists count={} cl_size={} total_bytes={}",
+                NBCL, cl_size, total_bytes
+            );
+        }
+
+        let keyframes_manager = KeyFramesManager {
+            inner: KeyFrame::new(),
+            logger: keyframes_logger,
+            keyframe_interval,
+            last_encoded_bytes: 0,
+            forced_timestamp: None,
+            locked: false,
+        };
+
+        let runtime_config = config.runtime.clone().unwrap_or_default();
+
+        let runtime = Self {
+            tasks,
+            bridges,
+            resources,
+            monitor,
+            execution_probe,
+            clock,
+            copperlists_manager,
+            keyframes_manager,
+            runtime_config,
+        };
+
+        Ok(runtime)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[cfg(not(feature = "std"))]
+    pub fn new(
+        clock: RobotClock,
+        config: &CuConfig,
+        mission: &str,
+        resources_instanciator: impl Fn(&CuConfig) -> CuResult<ResourceManager>,
+        tasks_instanciator: impl for<'c> Fn(
+            Vec<Option<&'c ComponentConfig>>,
+            &mut ResourceManager,
+        ) -> CuResult<CT>,
+        monitored_components: &'static [MonitorComponentMetadata],
+        culist_component_mapping: &'static [usize],
+        monitor_instanciator: impl Fn(&CuConfig, CuMonitoringMetadata, CuMonitoringRuntime) -> M,
+        bridges_instanciator: impl Fn(&CuConfig, &mut ResourceManager) -> CuResult<CB>,
+        copperlists_logger: impl WriteStream<CopperList<P>> + 'static,
+        keyframes_logger: impl WriteStream<KeyFrame> + 'static,
+    ) -> CuResult<Self> {
+        #[cfg(target_os = "none")]
+        info!("CuRuntime::new: resources instanciator");
+        let resources = resources_instanciator(config)?;
+        Self::new_with_resources(
+            clock,
+            config,
+            mission,
+            resources,
+            tasks_instanciator,
+            monitored_components,
+            culist_component_mapping,
+            monitor_instanciator,
+            bridges_instanciator,
+            copperlists_logger,
+            keyframes_logger,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    #[cfg(not(feature = "std"))]
+    pub fn new_with_resources(
+        clock: RobotClock,
+        config: &CuConfig,
+        mission: &str,
+        mut resources: ResourceManager,
+        tasks_instanciator: impl for<'c> Fn(
+            Vec<Option<&'c ComponentConfig>>,
+            &mut ResourceManager,
+        ) -> CuResult<CT>,
+        monitored_components: &'static [MonitorComponentMetadata],
+        culist_component_mapping: &'static [usize],
+        monitor_instanciator: impl Fn(&CuConfig, CuMonitoringMetadata, CuMonitoringRuntime) -> M,
+        bridges_instanciator: impl Fn(&CuConfig, &mut ResourceManager) -> CuResult<CB>,
+        copperlists_logger: impl WriteStream<CopperList<P>> + 'static,
+        keyframes_logger: impl WriteStream<KeyFrame> + 'static,
+    ) -> CuResult<Self> {
+        #[cfg(target_os = "none")]
+        info!("CuRuntime::new: get graph");
+        let graph = config.get_graph(Some(mission))?;
+        #[cfg(target_os = "none")]
+        info!("CuRuntime::new: graph ok");
+        let all_instances_configs: Vec<Option<&ComponentConfig>> = graph
+            .get_all_nodes()
+            .iter()
+            .map(|(_, node)| node.get_instance_config())
+            .collect();
+
+        #[cfg(target_os = "none")]
+        info!("CuRuntime::new: tasks instanciator");
+        let tasks = tasks_instanciator(all_instances_configs, &mut resources)?;
+
+        #[cfg(target_os = "none")]
+        info!("CuRuntime::new: monitor instanciator");
+        let monitor_metadata = CuMonitoringMetadata::new(
+            CompactString::from(mission),
+            monitored_components,
+            culist_component_mapping,
+            CopperListInfo::new(core::mem::size_of::<CopperList<P>>(), NBCL),
+            build_monitor_topology(config, mission)?,
+            None,
+        )?;
+        let monitor_runtime = CuMonitoringRuntime::unavailable();
+        let monitor = monitor_instanciator(config, monitor_metadata, monitor_runtime);
+        let execution_probe = RuntimeExecutionProbe::default();
+        #[cfg(target_os = "none")]
+        info!("CuRuntime::new: monitor instanciator ok");
+        #[cfg(target_os = "none")]
+        info!("CuRuntime::new: bridges instanciator");
+        let bridges = bridges_instanciator(config, &mut resources)?;
+
+        let (copperlists_logger, keyframes_logger, keyframe_interval) = match &config.logging {
+            Some(logging_config) if logging_config.enable_task_logging => (
+                Some(Box::new(copperlists_logger) as Box<dyn WriteStream<CopperList<P>>>),
+                Some(Box::new(keyframes_logger) as Box<dyn WriteStream<KeyFrame>>),
+                logging_config.keyframe_interval.unwrap(), // it is set to a default at parsing time
+            ),
+            Some(_) => (None, None, 0), // explicit no enable logging
+            None => (
+                // default
+                Some(Box::new(copperlists_logger) as Box<dyn WriteStream<CopperList<P>>>),
+                Some(Box::new(keyframes_logger) as Box<dyn WriteStream<KeyFrame>>),
+                DEFAULT_KEYFRAME_INTERVAL,
+            ),
+        };
+
+        let copperlists_manager = CopperListsManager {
+            inner: CuListsManager::new(),
+            logger: copperlists_logger,
+            last_encoded_bytes: 0,
+        };
+        #[cfg(target_os = "none")]
+        {
+            let cl_size = core::mem::size_of::<CopperList<P>>();
+            let total_bytes = cl_size.saturating_mul(NBCL);
+            info!(
+                "CuRuntime::new: copperlists count={} cl_size={} total_bytes={}",
+                NBCL, cl_size, total_bytes
+            );
+        }
+
+        let keyframes_manager = KeyFramesManager {
+            inner: KeyFrame::new(),
+            logger: keyframes_logger,
+            keyframe_interval,
+            last_encoded_bytes: 0,
+            forced_timestamp: None,
+            locked: false,
+        };
+
+        let runtime_config = config.runtime.clone().unwrap_or_default();
+
+        let runtime = Self {
+            tasks,
+            bridges,
+            resources,
+            monitor,
+            execution_probe,
+            clock,
+            copperlists_manager,
+            keyframes_manager,
+            runtime_config,
+        };
+
+        Ok(runtime)
+    }
+}
+
+/// Copper tasks can be of 3 types:
+/// - Source: only producing output messages (usually used for drivers)
+/// - Regular: processing input messages and producing output messages, more like compute nodes.
+/// - Sink: only consuming input messages (usually used for actuators)
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum CuTaskType {
+    Source,
+    Regular,
+    Sink,
+}
+
+#[derive(Debug, Clone)]
+pub struct CuOutputPack {
+    pub culist_index: u32,
+    pub msg_types: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CuInputMsg {
+    pub culist_index: u32,
+    pub msg_type: String,
+    pub src_port: usize,
+    pub edge_id: usize,
+}
+
+/// This structure represents a step in the execution plan.
+pub struct CuExecutionStep {
+    /// NodeId: node id of the task to execute
+    pub node_id: NodeId,
+    /// Node: node instance
+    pub node: Node,
+    /// CuTaskType: type of the task
+    pub task_type: CuTaskType,
+
+    /// the indices in the copper list of the input messages and their types
+    pub input_msg_indices_types: Vec<CuInputMsg>,
+
+    /// the index in the copper list of the output message and its type
+    pub output_msg_pack: Option<CuOutputPack>,
+}
+
+impl Debug for CuExecutionStep {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str(format!("   CuExecutionStep: Node Id: {}\n", self.node_id).as_str())?;
+        f.write_str(format!("                  task_type: {:?}\n", self.node.get_type()).as_str())?;
+        f.write_str(format!("                       task: {:?}\n", self.task_type).as_str())?;
+        f.write_str(
+            format!(
+                "              input_msg_types: {:?}\n",
+                self.input_msg_indices_types
+            )
+            .as_str(),
+        )?;
+        f.write_str(format!("       output_msg_pack: {:?}\n", self.output_msg_pack).as_str())?;
+        Ok(())
+    }
+}
+
+/// This structure represents a loop in the execution plan.
+/// It is used to represent a sequence of Execution units (loop or steps) that are executed
+/// multiple times.
+/// if loop_count is None, the loop is infinite.
+pub struct CuExecutionLoop {
+    pub steps: Vec<CuExecutionUnit>,
+    pub loop_count: Option<u32>,
+}
+
+impl Debug for CuExecutionLoop {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.write_str("CuExecutionLoop:\n")?;
+        for step in &self.steps {
+            match step {
+                CuExecutionUnit::Step(step) => {
+                    step.fmt(f)?;
+                }
+                CuExecutionUnit::Loop(l) => {
+                    l.fmt(f)?;
+                }
+            }
+        }
+
+        f.write_str(format!("   count: {:?}", self.loop_count).as_str())?;
+        Ok(())
+    }
+}
+
+/// This structure represents a step in the execution plan.
+#[derive(Debug)]
+pub enum CuExecutionUnit {
+    Step(CuExecutionStep),
+    Loop(CuExecutionLoop),
+}
+
+fn find_output_pack_from_nodeid(
+    node_id: NodeId,
+    steps: &Vec<CuExecutionUnit>,
+) -> Option<CuOutputPack> {
+    for step in steps {
+        match step {
+            CuExecutionUnit::Loop(loop_unit) => {
+                if let Some(output_pack) = find_output_pack_from_nodeid(node_id, &loop_unit.steps) {
+                    return Some(output_pack);
+                }
+            }
+            CuExecutionUnit::Step(step) => {
+                if step.node_id == node_id {
+                    return step.output_msg_pack.clone();
+                }
+            }
+        }
+    }
+    None
+}
+
+pub fn find_task_type_for_id(graph: &CuGraph, node_id: NodeId) -> CuTaskType {
+    if graph.incoming_neighbor_count(node_id) == 0 {
+        CuTaskType::Source
+    } else if graph.outgoing_neighbor_count(node_id) == 0 {
+        CuTaskType::Sink
+    } else {
+        CuTaskType::Regular
+    }
+}
+
+/// The connection id used here is the index of the config graph edge that equates to the wanted
+/// connection.
+fn sort_inputs_by_cnx_id(input_msg_indices_types: &mut [CuInputMsg]) {
+    input_msg_indices_types.sort_by_key(|input| input.edge_id);
+}
+
+fn collect_output_msg_types(graph: &CuGraph, node_id: NodeId) -> Vec<String> {
+    let mut edge_ids = graph.get_src_edges(node_id).unwrap_or_default();
+    edge_ids.sort();
+
+    let mut msg_types = Vec::new();
+    let mut seen = Vec::new();
+    for edge_id in edge_ids {
+        if let Some(edge) = graph.edge(edge_id) {
+            if seen.iter().any(|msg| msg == &edge.msg) {
+                continue;
+            }
+            seen.push(edge.msg.clone());
+            msg_types.push(edge.msg.clone());
+        }
+    }
+    msg_types
+}
+/// Explores a subbranch and build the partial plan out of it.
+fn plan_tasks_tree_branch(
+    graph: &CuGraph,
+    mut next_culist_output_index: u32,
+    starting_point: NodeId,
+    plan: &mut Vec<CuExecutionUnit>,
+) -> (u32, bool) {
+    #[cfg(all(feature = "std", feature = "macro_debug"))]
+    eprintln!("-- starting branch from node {starting_point}");
+
+    let mut handled = false;
+
+    for id in graph.bfs_nodes(starting_point) {
+        let node_ref = graph.get_node(id).unwrap();
+        #[cfg(all(feature = "std", feature = "macro_debug"))]
+        eprintln!("  Visiting node: {node_ref:?}");
+
+        let mut input_msg_indices_types: Vec<CuInputMsg> = Vec::new();
+        let output_msg_pack: Option<CuOutputPack>;
+        let task_type = find_task_type_for_id(graph, id);
+
+        match task_type {
+            CuTaskType::Source => {
+                #[cfg(all(feature = "std", feature = "macro_debug"))]
+                eprintln!("    → Source node, assign output index {next_culist_output_index}");
+                let msg_types = collect_output_msg_types(graph, id);
+                if msg_types.is_empty() {
+                    panic!(
+                        "Source node '{}' has no outgoing connections",
+                        node_ref.get_id()
+                    );
+                }
+                output_msg_pack = Some(CuOutputPack {
+                    culist_index: next_culist_output_index,
+                    msg_types,
+                });
+                next_culist_output_index += 1;
+            }
+            CuTaskType::Sink => {
+                let mut edge_ids = graph.get_dst_edges(id).unwrap_or_default();
+                edge_ids.sort();
+                #[cfg(all(feature = "std", feature = "macro_debug"))]
+                eprintln!("    → Sink with incoming edges: {edge_ids:?}");
+                for edge_id in edge_ids {
+                    let edge = graph
+                        .edge(edge_id)
+                        .unwrap_or_else(|| panic!("Missing edge {edge_id} for node {id}"));
+                    let pid = graph
+                        .get_node_id_by_name(edge.src.as_str())
+                        .unwrap_or_else(|| {
+                            panic!("Missing source node '{}' for edge {edge_id}", edge.src)
+                        });
+                    let output_pack = find_output_pack_from_nodeid(pid, plan);
+                    if let Some(output_pack) = output_pack {
+                        #[cfg(all(feature = "std", feature = "macro_debug"))]
+                        eprintln!("      ✓ Input from {pid} ready: {output_pack:?}");
+                        let msg_type = edge.msg.as_str();
+                        let src_port = output_pack
+                            .msg_types
+                            .iter()
+                            .position(|msg| msg == msg_type)
+                            .unwrap_or_else(|| {
+                                panic!(
+                                    "Missing output port for message type '{msg_type}' on node {pid}"
+                                )
+                            });
+                        input_msg_indices_types.push(CuInputMsg {
+                            culist_index: output_pack.culist_index,
+                            msg_type: msg_type.to_string(),
+                            src_port,
+                            edge_id,
+                        });
+                    } else {
+                        #[cfg(all(feature = "std", feature = "macro_debug"))]
+                        eprintln!("      ✗ Input from {pid} not ready, returning");
+                        return (next_culist_output_index, handled);
+                    }
+                }
+                output_msg_pack = Some(CuOutputPack {
+                    culist_index: next_culist_output_index,
+                    msg_types: Vec::from(["()".to_string()]),
+                });
+                next_culist_output_index += 1;
+            }
+            CuTaskType::Regular => {
+                let mut edge_ids = graph.get_dst_edges(id).unwrap_or_default();
+                edge_ids.sort();
+                #[cfg(all(feature = "std", feature = "macro_debug"))]
+                eprintln!("    → Regular task with incoming edges: {edge_ids:?}");
+                for edge_id in edge_ids {
+                    let edge = graph
+                        .edge(edge_id)
+                        .unwrap_or_else(|| panic!("Missing edge {edge_id} for node {id}"));
+                    let pid = graph
+                        .get_node_id_by_name(edge.src.as_str())
+                        .unwrap_or_else(|| {
+                            panic!("Missing source node '{}' for edge {edge_id}", edge.src)
+                        });
+                    let output_pack = find_output_pack_from_nodeid(pid, plan);
+                    if let Some(output_pack) = output_pack {
+                        #[cfg(all(feature = "std", feature = "macro_debug"))]
+                        eprintln!("      ✓ Input from {pid} ready: {output_pack:?}");
+                        let msg_type = edge.msg.as_str();
+                        let src_port = output_pack
+                            .msg_types
+                            .iter()
+                            .position(|msg| msg == msg_type)
+                            .unwrap_or_else(|| {
+                                panic!(
+                                    "Missing output port for message type '{msg_type}' on node {pid}"
+                                )
+                            });
+                        input_msg_indices_types.push(CuInputMsg {
+                            culist_index: output_pack.culist_index,
+                            msg_type: msg_type.to_string(),
+                            src_port,
+                            edge_id,
+                        });
+                    } else {
+                        #[cfg(all(feature = "std", feature = "macro_debug"))]
+                        eprintln!("      ✗ Input from {pid} not ready, returning");
+                        return (next_culist_output_index, handled);
+                    }
+                }
+                let msg_types = collect_output_msg_types(graph, id);
+                if msg_types.is_empty() {
+                    panic!(
+                        "Regular node '{}' has no outgoing connections",
+                        node_ref.get_id()
+                    );
+                }
+                output_msg_pack = Some(CuOutputPack {
+                    culist_index: next_culist_output_index,
+                    msg_types,
+                });
+                next_culist_output_index += 1;
+            }
+        }
+
+        sort_inputs_by_cnx_id(&mut input_msg_indices_types);
+
+        if let Some(pos) = plan
+            .iter()
+            .position(|step| matches!(step, CuExecutionUnit::Step(s) if s.node_id == id))
+        {
+            #[cfg(all(feature = "std", feature = "macro_debug"))]
+            eprintln!("    → Already in plan, modifying existing step");
+            let mut step = plan.remove(pos);
+            if let CuExecutionUnit::Step(ref mut s) = step {
+                s.input_msg_indices_types = input_msg_indices_types;
+            }
+            plan.push(step);
+        } else {
+            #[cfg(all(feature = "std", feature = "macro_debug"))]
+            eprintln!("    → New step added to plan");
+            let step = CuExecutionStep {
+                node_id: id,
+                node: node_ref.clone(),
+                task_type,
+                input_msg_indices_types,
+                output_msg_pack,
+            };
+            plan.push(CuExecutionUnit::Step(step));
+        }
+
+        handled = true;
+    }
+
+    #[cfg(all(feature = "std", feature = "macro_debug"))]
+    eprintln!("-- finished branch from node {starting_point} with handled={handled}");
+    (next_culist_output_index, handled)
+}
+
+/// This is the main heuristics to compute an execution plan at compilation time.
+/// TODO(gbin): Make that heuristic pluggable.
+pub fn compute_runtime_plan(graph: &CuGraph) -> CuResult<CuExecutionLoop> {
+    #[cfg(all(feature = "std", feature = "macro_debug"))]
+    eprintln!("[runtime plan]");
+    let mut plan = Vec::new();
+    let mut next_culist_output_index = 0u32;
+
+    let mut queue: VecDeque<NodeId> = graph
+        .node_ids()
+        .into_iter()
+        .filter(|&node_id| find_task_type_for_id(graph, node_id) == CuTaskType::Source)
+        .collect();
+
+    #[cfg(all(feature = "std", feature = "macro_debug"))]
+    eprintln!("Initial source nodes: {queue:?}");
+
+    while let Some(start_node) = queue.pop_front() {
+        #[cfg(all(feature = "std", feature = "macro_debug"))]
+        eprintln!("→ Starting BFS from source {start_node}");
+        for node_id in graph.bfs_nodes(start_node) {
+            let already_in_plan = plan
+                .iter()
+                .any(|unit| matches!(unit, CuExecutionUnit::Step(s) if s.node_id == node_id));
+            if already_in_plan {
+                #[cfg(all(feature = "std", feature = "macro_debug"))]
+                eprintln!("    → Node {node_id} already planned, skipping");
+                continue;
+            }
+
+            #[cfg(all(feature = "std", feature = "macro_debug"))]
+            eprintln!("    Planning from node {node_id}");
+            let (new_index, handled) =
+                plan_tasks_tree_branch(graph, next_culist_output_index, node_id, &mut plan);
+            next_culist_output_index = new_index;
+
+            if !handled {
+                #[cfg(all(feature = "std", feature = "macro_debug"))]
+                eprintln!("    ✗ Node {node_id} was not handled, skipping enqueue of neighbors");
+                continue;
+            }
+
+            #[cfg(all(feature = "std", feature = "macro_debug"))]
+            eprintln!("    ✓ Node {node_id} handled successfully, enqueueing neighbors");
+            for neighbor in graph.get_neighbor_ids(node_id, CuDirection::Outgoing) {
+                #[cfg(all(feature = "std", feature = "macro_debug"))]
+                eprintln!("      → Enqueueing neighbor {neighbor}");
+                queue.push_back(neighbor);
+            }
+        }
+    }
+
+    let mut planned_nodes = BTreeSet::new();
+    for unit in &plan {
+        if let CuExecutionUnit::Step(step) = unit {
+            planned_nodes.insert(step.node_id);
+        }
+    }
+
+    let mut missing = Vec::new();
+    for node_id in graph.node_ids() {
+        if !planned_nodes.contains(&node_id) {
+            if let Some(node) = graph.get_node(node_id) {
+                missing.push(node.get_id().to_string());
+            } else {
+                missing.push(format!("node_id_{node_id}"));
+            }
+        }
+    }
+
+    if !missing.is_empty() {
+        missing.sort();
+        return Err(CuError::from(format!(
+            "Execution plan could not include all nodes. Missing: {}. Check for loopback or missing source connections.",
+            missing.join(", ")
+        )));
+    }
+
+    Ok(CuExecutionLoop {
+        steps: plan,
+        loop_count: None,
+    })
+}
+
+//tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::Node;
+    use crate::context::CuContext;
+    use crate::cutask::CuSinkTask;
+    use crate::cutask::{CuSrcTask, Freezable};
+    use crate::monitoring::NoMonitor;
+    use crate::reflect::Reflect;
+    use bincode::Encode;
+    use cu29_traits::{ErasedCuStampedData, ErasedCuStampedDataSet, MatchingTasks};
+    use serde_derive::{Deserialize, Serialize};
+
+    #[derive(Reflect)]
+    pub struct TestSource {}
+
+    impl Freezable for TestSource {}
+
+    impl CuSrcTask for TestSource {
+        type Resources<'r> = ();
+        type Output<'m> = ();
+        fn new(_config: Option<&ComponentConfig>, _resources: Self::Resources<'_>) -> CuResult<Self>
+        where
+            Self: Sized,
+        {
+            Ok(Self {})
+        }
+
+        fn process(&mut self, _ctx: &CuContext, _empty_msg: &mut Self::Output<'_>) -> CuResult<()> {
+            Ok(())
+        }
+    }
+
+    #[derive(Reflect)]
+    pub struct TestSink {}
+
+    impl Freezable for TestSink {}
+
+    impl CuSinkTask for TestSink {
+        type Resources<'r> = ();
+        type Input<'m> = ();
+
+        fn new(_config: Option<&ComponentConfig>, _resources: Self::Resources<'_>) -> CuResult<Self>
+        where
+            Self: Sized,
+        {
+            Ok(Self {})
+        }
+
+        fn process(&mut self, _ctx: &CuContext, _input: &Self::Input<'_>) -> CuResult<()> {
+            Ok(())
+        }
+    }
+
+    // Those should be generated by the derive macro
+    type Tasks = (TestSource, TestSink);
+
+    #[derive(Debug, Encode, Decode, Serialize, Deserialize, Default)]
+    struct Msgs(());
+
+    impl ErasedCuStampedDataSet for Msgs {
+        fn cumsgs(&self) -> Vec<&dyn ErasedCuStampedData> {
+            Vec::new()
+        }
+    }
+
+    impl MatchingTasks for Msgs {
+        fn get_all_task_ids() -> &'static [&'static str] {
+            &[]
+        }
+    }
+
+    impl CuListZeroedInit for Msgs {
+        fn init_zeroed(&mut self) {}
+    }
+
+    #[cfg(feature = "std")]
+    fn tasks_instanciator(
+        all_instances_configs: Vec<Option<&ComponentConfig>>,
+        _resources: &mut ResourceManager,
+    ) -> CuResult<Tasks> {
+        Ok((
+            TestSource::new(all_instances_configs[0], ())?,
+            TestSink::new(all_instances_configs[1], ())?,
+        ))
+    }
+
+    #[cfg(not(feature = "std"))]
+    fn tasks_instanciator(
+        all_instances_configs: Vec<Option<&ComponentConfig>>,
+        _resources: &mut ResourceManager,
+    ) -> CuResult<Tasks> {
+        Ok((
+            TestSource::new(all_instances_configs[0], ())?,
+            TestSink::new(all_instances_configs[1], ())?,
+        ))
+    }
+
+    fn monitor_instanciator(
+        _config: &CuConfig,
+        metadata: CuMonitoringMetadata,
+        runtime: CuMonitoringRuntime,
+    ) -> NoMonitor {
+        NoMonitor::new(metadata, runtime).expect("NoMonitor::new should never fail")
+    }
+
+    fn bridges_instanciator(_config: &CuConfig, _resources: &mut ResourceManager) -> CuResult<()> {
+        Ok(())
+    }
+
+    fn resources_instanciator(_config: &CuConfig) -> CuResult<ResourceManager> {
+        Ok(ResourceManager::new(&[]))
+    }
+
+    #[derive(Debug)]
+    struct FakeWriter {}
+
+    impl<E: Encode> WriteStream<E> for FakeWriter {
+        fn log(&mut self, _obj: &E) -> CuResult<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_runtime_instantiation() {
+        let mut config = CuConfig::default();
+        let graph = config.get_graph_mut(None).unwrap();
+        graph.add_node(Node::new("a", "TestSource")).unwrap();
+        graph.add_node(Node::new("b", "TestSink")).unwrap();
+        graph.connect(0, 1, "()").unwrap();
+        let runtime = CuRuntime::<Tasks, (), Msgs, NoMonitor, 2>::new(
+            RobotClock::default(),
+            &config,
+            crate::config::DEFAULT_MISSION_ID,
+            resources_instanciator,
+            tasks_instanciator,
+            &[],
+            &[],
+            monitor_instanciator,
+            bridges_instanciator,
+            FakeWriter {},
+            FakeWriter {},
+        );
+        assert!(runtime.is_ok());
+    }
+
+    #[test]
+    fn test_copperlists_manager_lifecycle() {
+        let mut config = CuConfig::default();
+        let graph = config.get_graph_mut(None).unwrap();
+        graph.add_node(Node::new("a", "TestSource")).unwrap();
+        graph.add_node(Node::new("b", "TestSink")).unwrap();
+        graph.connect(0, 1, "()").unwrap();
+
+        let mut runtime = CuRuntime::<Tasks, (), Msgs, NoMonitor, 2>::new(
+            RobotClock::default(),
+            &config,
+            crate::config::DEFAULT_MISSION_ID,
+            resources_instanciator,
+            tasks_instanciator,
+            &[],
+            &[],
+            monitor_instanciator,
+            bridges_instanciator,
+            FakeWriter {},
+            FakeWriter {},
+        )
+        .unwrap();
+
+        // Now emulates the generated runtime
+        {
+            let copperlists = &mut runtime.copperlists_manager;
+            let culist0 = copperlists
+                .inner
+                .create()
+                .expect("Ran out of space for copper lists");
+            // FIXME: error handling.
+            let id = culist0.id;
+            assert_eq!(id, 0);
+            culist0.change_state(CopperListState::Processing);
+            assert_eq!(copperlists.available_copper_lists(), 1);
+        }
+
+        {
+            let copperlists = &mut runtime.copperlists_manager;
+            let culist1 = copperlists
+                .inner
+                .create()
+                .expect("Ran out of space for copper lists"); // FIXME: error handling.
+            let id = culist1.id;
+            assert_eq!(id, 1);
+            culist1.change_state(CopperListState::Processing);
+            assert_eq!(copperlists.available_copper_lists(), 0);
+        }
+
+        {
+            let copperlists = &mut runtime.copperlists_manager;
+            let culist2 = copperlists.inner.create();
+            assert!(culist2.is_none());
+            assert_eq!(copperlists.available_copper_lists(), 0);
+            // Free in order, should let the top of the stack be serialized and freed.
+            let _ = copperlists.end_of_processing(1);
+            assert_eq!(copperlists.available_copper_lists(), 1);
+        }
+
+        // Readd a CL
+        {
+            let copperlists = &mut runtime.copperlists_manager;
+            let culist2 = copperlists
+                .inner
+                .create()
+                .expect("Ran out of space for copper lists"); // FIXME: error handling.
+            let id = culist2.id;
+            assert_eq!(id, 2);
+            culist2.change_state(CopperListState::Processing);
+            assert_eq!(copperlists.available_copper_lists(), 0);
+            // Free out of order, the #0 first
+            let _ = copperlists.end_of_processing(0);
+            // Should not free up the top of the stack
+            assert_eq!(copperlists.available_copper_lists(), 0);
+
+            // Free up the top of the stack
+            let _ = copperlists.end_of_processing(2);
+            // This should free up 2 CLs
+
+            assert_eq!(copperlists.available_copper_lists(), 2);
+        }
+    }
+
+    #[test]
+    fn test_runtime_task_input_order() {
+        let mut config = CuConfig::default();
+        let graph = config.get_graph_mut(None).unwrap();
+        let src1_id = graph.add_node(Node::new("a", "Source1")).unwrap();
+        let src2_id = graph.add_node(Node::new("b", "Source2")).unwrap();
+        let sink_id = graph.add_node(Node::new("c", "Sink")).unwrap();
+
+        assert_eq!(src1_id, 0);
+        assert_eq!(src2_id, 1);
+
+        // note that the source2 connection is before the source1
+        let src1_type = "src1_type";
+        let src2_type = "src2_type";
+        graph.connect(src2_id, sink_id, src2_type).unwrap();
+        graph.connect(src1_id, sink_id, src1_type).unwrap();
+
+        let src1_edge_id = *graph.get_src_edges(src1_id).unwrap().first().unwrap();
+        let src2_edge_id = *graph.get_src_edges(src2_id).unwrap().first().unwrap();
+        // the edge id depends on the order the connection is created, not
+        // on the node id, and that is what determines the input order
+        assert_eq!(src1_edge_id, 1);
+        assert_eq!(src2_edge_id, 0);
+
+        let runtime = compute_runtime_plan(graph).unwrap();
+        let sink_step = runtime
+            .steps
+            .iter()
+            .find_map(|step| match step {
+                CuExecutionUnit::Step(step) if step.node_id == sink_id => Some(step),
+                _ => None,
+            })
+            .unwrap();
+
+        // since the src2 connection was added before src1 connection, the src2 type should be
+        // first
+        assert_eq!(sink_step.input_msg_indices_types[0].msg_type, src2_type);
+        assert_eq!(sink_step.input_msg_indices_types[1].msg_type, src1_type);
+    }
+
+    #[test]
+    fn test_runtime_output_ports_unique_ordered() {
+        let mut config = CuConfig::default();
+        let graph = config.get_graph_mut(None).unwrap();
+        let src_id = graph.add_node(Node::new("src", "Source")).unwrap();
+        let dst_a_id = graph.add_node(Node::new("dst_a", "SinkA")).unwrap();
+        let dst_b_id = graph.add_node(Node::new("dst_b", "SinkB")).unwrap();
+        let dst_a2_id = graph.add_node(Node::new("dst_a2", "SinkA2")).unwrap();
+        let dst_c_id = graph.add_node(Node::new("dst_c", "SinkC")).unwrap();
+
+        graph.connect(src_id, dst_a_id, "msg::A").unwrap();
+        graph.connect(src_id, dst_b_id, "msg::B").unwrap();
+        graph.connect(src_id, dst_a2_id, "msg::A").unwrap();
+        graph.connect(src_id, dst_c_id, "msg::C").unwrap();
+
+        let runtime = compute_runtime_plan(graph).unwrap();
+        let src_step = runtime
+            .steps
+            .iter()
+            .find_map(|step| match step {
+                CuExecutionUnit::Step(step) if step.node_id == src_id => Some(step),
+                _ => None,
+            })
+            .unwrap();
+
+        let output_pack = src_step.output_msg_pack.as_ref().unwrap();
+        assert_eq!(output_pack.msg_types, vec!["msg::A", "msg::B", "msg::C"]);
+
+        let dst_a_step = runtime
+            .steps
+            .iter()
+            .find_map(|step| match step {
+                CuExecutionUnit::Step(step) if step.node_id == dst_a_id => Some(step),
+                _ => None,
+            })
+            .unwrap();
+        let dst_b_step = runtime
+            .steps
+            .iter()
+            .find_map(|step| match step {
+                CuExecutionUnit::Step(step) if step.node_id == dst_b_id => Some(step),
+                _ => None,
+            })
+            .unwrap();
+        let dst_a2_step = runtime
+            .steps
+            .iter()
+            .find_map(|step| match step {
+                CuExecutionUnit::Step(step) if step.node_id == dst_a2_id => Some(step),
+                _ => None,
+            })
+            .unwrap();
+        let dst_c_step = runtime
+            .steps
+            .iter()
+            .find_map(|step| match step {
+                CuExecutionUnit::Step(step) if step.node_id == dst_c_id => Some(step),
+                _ => None,
+            })
+            .unwrap();
+
+        assert_eq!(dst_a_step.input_msg_indices_types[0].src_port, 0);
+        assert_eq!(dst_b_step.input_msg_indices_types[0].src_port, 1);
+        assert_eq!(dst_a2_step.input_msg_indices_types[0].src_port, 0);
+        assert_eq!(dst_c_step.input_msg_indices_types[0].src_port, 2);
+    }
+
+    #[test]
+    fn test_runtime_output_ports_fanout_single() {
+        let mut config = CuConfig::default();
+        let graph = config.get_graph_mut(None).unwrap();
+        let src_id = graph.add_node(Node::new("src", "Source")).unwrap();
+        let dst_a_id = graph.add_node(Node::new("dst_a", "SinkA")).unwrap();
+        let dst_b_id = graph.add_node(Node::new("dst_b", "SinkB")).unwrap();
+
+        graph.connect(src_id, dst_a_id, "i32").unwrap();
+        graph.connect(src_id, dst_b_id, "i32").unwrap();
+
+        let runtime = compute_runtime_plan(graph).unwrap();
+        let src_step = runtime
+            .steps
+            .iter()
+            .find_map(|step| match step {
+                CuExecutionUnit::Step(step) if step.node_id == src_id => Some(step),
+                _ => None,
+            })
+            .unwrap();
+
+        let output_pack = src_step.output_msg_pack.as_ref().unwrap();
+        assert_eq!(output_pack.msg_types, vec!["i32"]);
+    }
+
+    #[test]
+    fn test_runtime_plan_diamond_case1() {
+        // more complex topology that tripped the scheduler
+        let mut config = CuConfig::default();
+        let graph = config.get_graph_mut(None).unwrap();
+        let cam0_id = graph
+            .add_node(Node::new("cam0", "tasks::IntegerSrcTask"))
+            .unwrap();
+        let inf0_id = graph
+            .add_node(Node::new("inf0", "tasks::Integer2FloatTask"))
+            .unwrap();
+        let broadcast_id = graph
+            .add_node(Node::new("broadcast", "tasks::MergingSinkTask"))
+            .unwrap();
+
+        // case 1 order
+        graph.connect(cam0_id, broadcast_id, "i32").unwrap();
+        graph.connect(cam0_id, inf0_id, "i32").unwrap();
+        graph.connect(inf0_id, broadcast_id, "f32").unwrap();
+
+        let edge_cam0_to_broadcast = *graph.get_src_edges(cam0_id).unwrap().first().unwrap();
+        let edge_cam0_to_inf0 = graph.get_src_edges(cam0_id).unwrap()[1];
+
+        assert_eq!(edge_cam0_to_inf0, 0);
+        assert_eq!(edge_cam0_to_broadcast, 1);
+
+        let runtime = compute_runtime_plan(graph).unwrap();
+        let broadcast_step = runtime
+            .steps
+            .iter()
+            .find_map(|step| match step {
+                CuExecutionUnit::Step(step) if step.node_id == broadcast_id => Some(step),
+                _ => None,
+            })
+            .unwrap();
+
+        assert_eq!(broadcast_step.input_msg_indices_types[0].msg_type, "i32");
+        assert_eq!(broadcast_step.input_msg_indices_types[1].msg_type, "f32");
+    }
+
+    #[test]
+    fn test_runtime_plan_diamond_case2() {
+        // more complex topology that tripped the scheduler variation 2
+        let mut config = CuConfig::default();
+        let graph = config.get_graph_mut(None).unwrap();
+        let cam0_id = graph
+            .add_node(Node::new("cam0", "tasks::IntegerSrcTask"))
+            .unwrap();
+        let inf0_id = graph
+            .add_node(Node::new("inf0", "tasks::Integer2FloatTask"))
+            .unwrap();
+        let broadcast_id = graph
+            .add_node(Node::new("broadcast", "tasks::MergingSinkTask"))
+            .unwrap();
+
+        // case 2 order
+        graph.connect(cam0_id, inf0_id, "i32").unwrap();
+        graph.connect(cam0_id, broadcast_id, "i32").unwrap();
+        graph.connect(inf0_id, broadcast_id, "f32").unwrap();
+
+        let edge_cam0_to_inf0 = *graph.get_src_edges(cam0_id).unwrap().first().unwrap();
+        let edge_cam0_to_broadcast = graph.get_src_edges(cam0_id).unwrap()[1];
+
+        assert_eq!(edge_cam0_to_broadcast, 0);
+        assert_eq!(edge_cam0_to_inf0, 1);
+
+        let runtime = compute_runtime_plan(graph).unwrap();
+        let broadcast_step = runtime
+            .steps
+            .iter()
+            .find_map(|step| match step {
+                CuExecutionUnit::Step(step) if step.node_id == broadcast_id => Some(step),
+                _ => None,
+            })
+            .unwrap();
+
+        assert_eq!(broadcast_step.input_msg_indices_types[0].msg_type, "i32");
+        assert_eq!(broadcast_step.input_msg_indices_types[1].msg_type, "f32");
+    }
+}

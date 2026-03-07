@@ -1,0 +1,28 @@
+(
+    tasks: [
+        (
+            id: "sensor",
+            type: "tasks::SensorSource",
+        ),
+        (
+            id: "processor",
+            type: "tasks::Processor",
+        ),
+        (
+            id: "actuator",
+            type: "tasks::ActuatorSink",
+        ),
+    ],
+    cnx: [
+        (
+            src: "sensor",
+            dst: "processor",
+            msg: "f32",
+        ),
+        (
+            src: "processor",
+            dst: "actuator",
+            msg: "f32",
+        ),
+    ],
+)

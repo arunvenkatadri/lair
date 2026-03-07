@@ -1,0 +1,19 @@
+[package]
+name = "lair-msgs"
+description = "LAIR standard message types for robotics"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+bincode = { workspace = true }
+cu29-clock = { workspace = true }
+
+[dev-dependencies]
+bincode = { workspace = true }
