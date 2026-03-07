@@ -1,4 +1,4 @@
-# LAIR
+# LAIR OS
 
 <p align="center">
   <em>A deterministic robotics runtime for production deployments. Built in Rust on <a href="https://github.com/copper-project/copper-rs">Copper</a>.</em>
