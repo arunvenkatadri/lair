@@ -1,7 +1,7 @@
 # LAIR OS
 
 <p align="center">
-  <em>A deterministic robotics runtime for production deployments. Built in Rust on <a href="https://github.com/copper-project/copper-rs">Copper</a>.</em>
+  <em>Layered AI and Robotics OS. A deterministic robotics runtime for production deployments. Built in Rust on <a href="https://github.com/copper-project/copper-rs">Copper</a>.</em>
 </p>
 
 <p align="center">
