@@ -84,9 +84,9 @@ ron = { version = "0.12", default-features = false }
 clap = { version = "4.5", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 
 # ── Proc macros ──
-proc-macro2 = { version = "1.0", default-features = false }
-quote = { version = "1.0", default-features = false }
-syn = { version = "2.0", default-features = false, features = ["full"] }
+proc-macro2 = { version = "1.0" }
+quote = { version = "1.0" }
+syn = { version = "2.0", features = ["full"] }
 
 # ── Error handling ──
 anyhow = { version = "1.0", default-features = false }

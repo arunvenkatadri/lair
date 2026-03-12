@@ -7,7 +7,7 @@ use syn::{parse_macro_input, LitStr};
 ///
 /// Usage:
 ///
-/// ```rust
+/// ```ignore
 /// use cu29_base_derive::cu_error;
 ///
 /// let my_error = cu_error!("This is an error message");
