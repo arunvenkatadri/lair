@@ -90,7 +90,7 @@ Q2 2026            Q3 2026           Q4 2026               2027
 |---------|----------|--------|-------|
 | Bagel Logging | P0 | 🔴 | Parquet/DuckDB format, Matcha-compatible |
 | Matcha Cloud Sync | P1 | 🔴 | Fleet visibility, remote diagnostics |
-| Biscuit Safety | P2 | 🟡 | `PhysicsSafetyValidator`: actuator bounds + vehicle-dynamics constraints, shipped |
+| Biscuit Safety | P2 | 🟡 | `PhysicsSafetyValidator` + `SafetyGuard`/`SafetyGuardTask`; `#[lair_runtime]` fails the build on unguarded actuation (compile-time audit) |
 
 ### CLI (Basic)
 | Feature | Priority | Status | Notes |

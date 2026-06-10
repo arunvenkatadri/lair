@@ -1629,6 +1629,7 @@ dependencies = [
 name = "lair-derive"
 version = "0.1.0-beta"
 dependencies = [
+ "lair-biscuit",
  "proc-macro2",
  "quote",
  "syn 2.0.117",

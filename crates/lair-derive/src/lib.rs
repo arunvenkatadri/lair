@@ -5,7 +5,29 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, ItemStruct};
+use syn::parse::Parser;
+use syn::punctuated::Punctuated;
+use syn::{parse_macro_input, ItemStruct, Lit, Meta, Token};
+
+/// Extracts the `config = "..."` path from the `lair_runtime` attribute args,
+/// best-effort (returns `None` if the args don't parse or `config` is absent).
+fn extract_config_path(attr: &proc_macro2::TokenStream) -> Option<String> {
+    let metas = Punctuated::<Meta, Token![,]>::parse_terminated
+        .parse2(attr.clone())
+        .ok()?;
+    for meta in metas {
+        if let Meta::NameValue(nv) = meta {
+            if nv.path.is_ident("config") {
+                if let syn::Expr::Lit(expr) = nv.value {
+                    if let Lit::Str(s) = expr.lit {
+                        return Some(s.value());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
 
 /// Applied to a task struct to auto-implement `Freezable` with stateless defaults.
 ///
@@ -56,6 +78,23 @@ pub fn lair_runtime(attr: TokenStream, item: TokenStream) -> TokenStream {
     // dependency on every LAIR application crate.
     let attr2: proc_macro2::TokenStream = attr.into();
     let item2: proc_macro2::TokenStream = item.into();
+
+    // Compile-time safety check: refuse to build a graph in which a ControlCommand
+    // reaches an actuator without a SafetyGuardTask in front of it. Best-effort —
+    // if the config can't be located or parsed here, we defer to Copper's own
+    // codegen and skip the check rather than failing the build spuriously.
+    if let Some(config) = extract_config_path(&attr2) {
+        if let Ok(manifest_dir) = std::env::var("CARGO_MANIFEST_DIR") {
+            let full_path = std::path::Path::new(&manifest_dir).join(&config);
+            if let Some(path_str) = full_path.to_str() {
+                if let Err(msg) = lair_biscuit::audit_file(path_str) {
+                    return syn::Error::new(proc_macro2::Span::call_site(), msg)
+                        .to_compile_error()
+                        .into();
+                }
+            }
+        }
+    }
 
     let expanded = quote! {
         #[copper_runtime(#attr2)]

@@ -47,6 +47,9 @@ use lair_msgs::{ControlCommand, Gear, VehicleState};
 mod task;
 pub use task::SafetyGuardTask;
 
+mod audit;
+pub use audit::{audit_actuation_safety, audit_file, ensure_safe_actuation, UnguardedActuator};
+
 /// The physical envelope a [`PhysicsSafetyValidator`] enforces.
 ///
 /// Defaults model a generic passenger-scale vehicle. Tune these to the platform
