@@ -230,6 +230,8 @@ The safety architecture is designed into LAIR from the ground up &mdash; every c
 
 And you can't forget to wire it: `#[lair_runtime]` runs a **compile-time safety audit** of the task graph and *fails the build* if any `ControlCommand` reaches an actuator (a terminal sink) without a `SafetyGuardTask` in front of it &mdash; with an error that names the offending connection. The same check is available programmatically as `lair_biscuit::ensure_safe_actuation` for use in tests or `build.rs`. (We enforce at compile time rather than silently rewriting the graph, so what you wrote is what runs.)
 
+`SafetyGuardTask` also doubles as a **fail-operational watchdog**: give it a `watchdog_timeout_ms` and, if the upstream planner goes silent past that deadline, the guard stops passing nothing through and instead emits a controlled `safe_stop` &mdash; so a wedged or crashed planner brings the vehicle to a stop rather than latching the last command. The deadline is measured against the (mockable) runtime clock, so the behavior is deterministic and testable.
+
 ---
 
 ## Project Structure

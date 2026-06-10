@@ -7,6 +7,7 @@
         (
             id: "safety_guard",
             type: "lair_biscuit::SafetyGuardTask",
+            config: { "watchdog_timeout_ms": 200 },
         ),
         (
             id: "actuator",
