@@ -75,7 +75,7 @@ Q2 2026            Q3 2026           Q4 2026               2027
 | RON Config Parser | P0 | 🔴 | Task graph definition |
 | Monotonic Clock | P0 | 🔴 | High-precision, mockable |
 | Health Monitoring | P0 | 🔴 | Heartbeats, watchdogs |
-| Graceful Degradation | P0 | 🔴 | Limp home, don't crash |
+| Graceful Degradation | P0 | 🟡 | `PhysicsSafetyValidator::enforce`/`safe_stop` provide limp-home; not yet wired runtime-wide |
 
 ### Message Types
 | Feature | Priority | Status | Notes |
@@ -90,7 +90,7 @@ Q2 2026            Q3 2026           Q4 2026               2027
 |---------|----------|--------|-------|
 | Bagel Logging | P0 | 🔴 | Parquet/DuckDB format, Matcha-compatible |
 | Matcha Cloud Sync | P1 | 🔴 | Fleet visibility, remote diagnostics |
-| Biscuit Safety | P2 | 🔴 | Optional - for service robots, not AV |
+| Biscuit Safety | P2 | 🟡 | `PhysicsSafetyValidator`: actuator bounds + vehicle-dynamics constraints, shipped |
 
 ### CLI (Basic)
 | Feature | Priority | Status | Notes |

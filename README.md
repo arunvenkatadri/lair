@@ -13,7 +13,7 @@
 
 ---
 
-> **v0.1-beta** &mdash; LAIR is in closed beta. The runtime, API surface, CLI, and message types work. Safety and simulation are architecturally defined but not yet enforced &mdash; the traits exist, the implementations are stubs. See [What's in v0.1-beta](#whats-in-v01-beta) for exactly what ships and what doesn't.
+> **v0.1-beta** &mdash; LAIR is in closed beta. The runtime, API surface, CLI, message types, and the physics-constrained safety validator work. Simulation is architecturally defined but not yet enforced &mdash; the trait exists, the implementation is a stub. See [What's in v0.1-beta](#whats-in-v01-beta) for exactly what ships and what doesn't.
 
 ---
 
@@ -187,7 +187,7 @@ See [`examples/simple_robot`](./examples/simple_robot) for the full working vers
 +-----------------------------------------------------------+
 |  +-----------------------------------------------------+  |
 |  |              BISCUIT SAFETY LAYER (optional)         |  |
-|  |   SafetyValidator trait defined, not yet enforced    |  |
+|  |   PhysicsSafetyValidator: bounds + vehicle dynamics  |  |
 |  +-----------------------------------------------------+  |
 +-----------------------------------------------------------+
 |                       LAIR API                            |
@@ -214,13 +214,13 @@ This is an honest accounting. "Working" means you can build against it today. "S
 | Message types (geometry, sensors, navigation, vehicle) | **Working** | Serialization roundtrip tested |
 | CLI (`lair new`, `build`, `run`, `doctor`) | **Working** | Project scaffolding, build/run wrappers, system checks |
 | Proc macros (`#[lair_task]`, `#[lair_runtime]`) | **Working** | `lair_task` auto-impls Freezable; `lair_runtime` delegates to Copper |
-| Safety validation | **Stub** | `SafetyValidator` trait defined, `NoOpSafetyValidator` passes everything |
+| Safety validation | **Working** | `PhysicsSafetyValidator` enforces actuator bounds, throttle/brake exclusion, speed-dependent steering (rollover), gear-change and speed limits; `enforce`/`safe_stop` for graceful degradation. Call it from your control sink &mdash; not yet auto-inserted into the DAG. |
 | Simulation bridge | **Stub** | `SimBridge` trait defined, `MockSimBridge` is in-memory only |
 | Fleet management, cloud sync | Not started | Planned for v0.2 |
 | Full Isaac Sim integration | Not started | Planned for v0.3 |
 | Certification tooling | Not started | Planned for v0.3 |
 
-The safety architecture is designed into LAIR from the ground up &mdash; every control command flows through a `SafetyValidator` before reaching actuators. What v0.1-beta doesn't have yet is a real validator that enforces physics constraints. That's coming.
+The safety architecture is designed into LAIR from the ground up &mdash; every control command flows through a `SafetyValidator` before reaching actuators. As of v0.1-beta that validator is real: `PhysicsSafetyValidator` in [`lair-biscuit`](./crates/lair-biscuit) rejects commands that violate actuator bounds or the vehicle's dynamic envelope (e.g. steering hard enough to roll at speed), and can clamp commands back into the safe envelope or issue a controlled stop for limp-home behavior. What's still coming: automatic insertion of the validator into the task graph so it can't be bypassed by construction.
 
 ---
 
@@ -254,7 +254,7 @@ LAIR is part of the **Extelligence** ecosystem:
 | Project | Description | v0.1-beta Status |
 |---------|-------------|------------------|
 | **[Bagel](https://github.com/Extelligence-ai/bagel)** | Chat with your robot data | MCAP logging wired |
-| **[Biscuit](https://github.com/Extelligence-ai/biscuit)** | Physics-constrained AI safety | Coming soon |
+| **[Biscuit](https://github.com/Extelligence-ai/biscuit)** | Physics-constrained AI safety | `PhysicsSafetyValidator` shipped |
 | **[Matcha](https://github.com/Extelligence-ai/matcha)** | Cloud fleet management &amp; monitoring | Coming soon |
 | **[NVIDIA Isaac Sim](https://developer.nvidia.com/isaac/sim)** | Robotics simulation | Trait defined, mock impl |
 

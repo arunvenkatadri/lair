@@ -1,6 +1,6 @@
 [package]
 name = "lair-biscuit"
-description = "LAIR safety policy engine (v0.1 placeholder)"
+description = "LAIR physics-constrained safety policy engine"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
