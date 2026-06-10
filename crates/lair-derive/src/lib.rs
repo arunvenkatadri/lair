@@ -36,22 +36,29 @@ pub fn lair_task(_attr: TokenStream, item: TokenStream) -> TokenStream {
 
 /// Applied to a struct to generate the Copper runtime wiring.
 ///
-/// Delegates to `#[cu29_derive::copper_runtime(...)]`.
+/// Delegates to the `copper_runtime` attribute macro, which must be in scope —
+/// it is re-exported from the LAIR prelude, so `use cu29::prelude::*;` (or
+/// `use lair::prelude::*;`) is enough. This keeps consumers from having to depend
+/// on the internal `cu29-derive` crate directly.
 ///
 /// # Example
 ///
 /// ```ignore
+/// use cu29::prelude::*;
+///
 /// #[lair_runtime(config = "robot.ron")]
 /// struct App {}
 /// ```
 #[proc_macro_attribute]
 pub fn lair_runtime(attr: TokenStream, item: TokenStream) -> TokenStream {
     // Re-emit with the copper_runtime attribute — Rust expands iteratively.
+    // Emitting the bare (in-scope) name avoids forcing a direct `cu29-derive`
+    // dependency on every LAIR application crate.
     let attr2: proc_macro2::TokenStream = attr.into();
     let item2: proc_macro2::TokenStream = item.into();
 
     let expanded = quote! {
-        #[cu29_derive::copper_runtime(#attr2)]
+        #[copper_runtime(#attr2)]
         #item2
     };
 

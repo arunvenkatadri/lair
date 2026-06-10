@@ -13,3 +13,4 @@ repository.workspace = true
 [dependencies]
 lair-core = { workspace = true }
 lair-msgs = { workspace = true }
+cu29-runtime = { workspace = true }

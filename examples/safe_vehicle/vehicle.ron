@@ -1,0 +1,28 @@
+(
+    tasks: [
+        (
+            id: "planner",
+            type: "tasks::Planner",
+        ),
+        (
+            id: "safety_guard",
+            type: "lair_biscuit::SafetyGuardTask",
+        ),
+        (
+            id: "actuator",
+            type: "tasks::Actuator",
+        ),
+    ],
+    cnx: [
+        (
+            src: "planner",
+            dst: "safety_guard",
+            msg: "lair_msgs::ControlCommand",
+        ),
+        (
+            src: "safety_guard",
+            dst: "actuator",
+            msg: "lair_msgs::ControlCommand",
+        ),
+    ],
+)

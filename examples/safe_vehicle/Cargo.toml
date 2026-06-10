@@ -1,0 +1,15 @@
+[package]
+name = "safe-vehicle"
+description = "LAIR example: a SafetyGuardTask clamps unsafe commands inside the task graph"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+cu29 = { workspace = true }
+cu29-helpers = { workspace = true }
+lair-core = { workspace = true }
+lair-msgs = { workspace = true }
+lair-biscuit = { workspace = true }
+serde = { workspace = true }

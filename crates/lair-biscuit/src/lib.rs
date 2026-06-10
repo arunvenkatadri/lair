@@ -44,6 +44,9 @@ use core::fmt;
 use lair_core::prelude::LairResult;
 use lair_msgs::{ControlCommand, Gear, VehicleState};
 
+mod task;
+pub use task::SafetyGuardTask;
+
 /// The physical envelope a [`PhysicsSafetyValidator`] enforces.
 ///
 /// Defaults model a generic passenger-scale vehicle. Tune these to the platform

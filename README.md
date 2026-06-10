@@ -219,14 +219,14 @@ This is an honest accounting. "Working" means you can build against it today. "S
 | CLI (`lair new`, `build`, `run`, `doctor`) | **Working** | Project scaffolding, build/run wrappers, system checks |
 | CLI record / replay (`lair record`, `lair replay`) | **Working** | `record` runs the app and locates its MCAP recording; `replay` inspects a log (per-channel counts, time span, record dump) and tolerates truncated logs from a killed robot |
 | Proc macros (`#[lair_task]`, `#[lair_runtime]`) | **Working** | `lair_task` auto-impls Freezable; `lair_runtime` delegates to Copper |
-| Safety validation | **Working** | `PhysicsSafetyValidator` enforces actuator bounds, throttle/brake exclusion, speed-dependent steering (rollover), gear-change and speed limits; `enforce`/`safe_stop` for graceful degradation. `SafetyGuard` (Enforced/Advisory) is the checkpoint commands pass through; `SafeCommand` makes validation unbypassable by construction. |
+| Safety validation | **Working** | `PhysicsSafetyValidator` enforces actuator bounds, throttle/brake exclusion, speed-dependent steering (rollover), gear-change and speed limits; `enforce`/`safe_stop` for graceful degradation. `SafetyGuard` (Enforced/Advisory) is the checkpoint commands pass through; `SafeCommand` makes validation unbypassable by construction; `SafetyGuardTask` drops the guard into a task graph as a node (see `examples/safe_vehicle`). |
 | Health monitoring / watchdogs | **Working** | `lair_core::health`: deadline-based `Heartbeat` and a criticality-aware `HealthMonitor` that classifies the system Healthy/Degraded/Critical and signals when a safe-state transition is required. Clock-driven, fully deterministic. |
 | Simulation bridge | **Stub** | `SimBridge` trait defined, `MockSimBridge` is in-memory only |
 | Fleet management, cloud sync | Not started | Planned for v0.2 |
 | Full Isaac Sim integration | Not started | Planned for v0.3 |
 | Certification tooling | Not started | Planned for v0.3 |
 
-The safety architecture is designed into LAIR from the ground up &mdash; every control command flows through a safety checkpoint before reaching actuators. As of v0.1-beta that checkpoint is real: `PhysicsSafetyValidator` in [`lair-biscuit`](./crates/lair-biscuit) rejects commands that violate actuator bounds or the vehicle's dynamic envelope (e.g. steering hard enough to roll at speed), and can clamp commands back into the safe envelope or issue a controlled stop for limp-home behavior. `SafetyGuard` wraps it with the Enforced/Advisory modes from the [spec](./SPEC.md), and the `SafeCommand` newtype makes the checkpoint **unbypassable by construction**: it has no public constructor, so the only way to obtain one is through the validator &mdash; an actuator whose hardware API accepts only a `SafeCommand` literally cannot be driven by an unvalidated command. What's still coming: a proc-macro that auto-inserts the guard as a node in the task graph.
+The safety architecture is designed into LAIR from the ground up &mdash; every control command flows through a safety checkpoint before reaching actuators. As of v0.1-beta that checkpoint is real: `PhysicsSafetyValidator` in [`lair-biscuit`](./crates/lair-biscuit) rejects commands that violate actuator bounds or the vehicle's dynamic envelope (e.g. steering hard enough to roll at speed), and can clamp commands back into the safe envelope or issue a controlled stop for limp-home behavior. `SafetyGuard` wraps it with the Enforced/Advisory modes from the [spec](./SPEC.md), and the `SafeCommand` newtype makes the checkpoint **unbypassable by construction**: it has no public constructor, so the only way to obtain one is through the validator &mdash; an actuator whose hardware API accepts only a `SafeCommand` literally cannot be driven by an unvalidated command. For graph-level enforcement, `SafetyGuardTask` is a `LairTask` you wire directly onto a `ControlCommand` edge (`planner → safety_guard → actuator`); the downstream actuator then physically cannot receive an unchecked command. [`examples/safe_vehicle`](./examples/safe_vehicle) demonstrates this end to end &mdash; a planner emitting an out-of-bounds command, clamped by the guard node before it reaches the actuator. What's still coming: a proc-macro that *auto-inserts* the guard node so wiring it can't be forgotten.
 
 ---
 
@@ -246,6 +246,7 @@ lair/
 |   +-- cu29-*/         # Copper runtime engine (forked, internal)
 +-- examples/
 |   +-- simple_robot/   # Minimal source -> task -> sink example
+|   +-- safe_vehicle/   # SafetyGuardTask clamping unsafe commands in the graph
 +-- SPEC.md             # Full specification
 +-- SIMULATION.md       # Simulation architecture
 +-- ROADMAP.md          # Development roadmap
