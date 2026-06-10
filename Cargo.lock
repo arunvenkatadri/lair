@@ -1611,6 +1611,7 @@ version = "0.1.0-beta"
 dependencies = [
  "anyhow",
  "clap",
+ "mcap",
 ]
 
 [[package]]

@@ -174,7 +174,7 @@ Q2 2026            Q3 2026           Q4 2026               2027
 | Parquet-based Recording | P0 | 🔴 | Bagel-compatible log format |
 | Replay Runtime | P0 | 🔴 | Play back recorded data |
 | Replay Sources | P0 | 🔴 | Virtual sensors from logs |
-| CLI Record/Replay | P0 | 🔴 | `lair record`, `lair replay` |
+| CLI Record/Replay | P0 | 🟡 | `lair record` (capture) and `lair replay` (inspect MCAP: per-channel stats, time span, record dump, truncation-tolerant) shipped; feeding logs back as replay sources still to come |
 
 ### Testing
 | Feature | Priority | Status | Notes |
