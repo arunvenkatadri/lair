@@ -218,6 +218,7 @@ This is an honest accounting. "Working" means you can build against it today. "S
 | Message types (geometry, sensors, navigation, vehicle) | **Working** | Serialization roundtrip tested |
 | CLI (`lair new`, `build`, `run`, `doctor`) | **Working** | Project scaffolding, build/run wrappers, system checks |
 | CLI record / replay (`lair record`, `lair replay`) | **Working** | `record` runs the app and locates its MCAP recording; `replay` inspects a log (per-channel counts, time span, record dump) and tolerates truncated logs from a killed robot |
+| Replay sources (virtual sensors) | **Working** | `lair_bagel::ReplaySource<T>` is a `LairSource` that replays a recorded MCAP stream into the graph in place of a real driver (with `encode_payloads`/`read_payloads` helpers). See `examples/replay_demo` — the foundation for deterministic, replay-driven testing. |
 | Proc macros (`#[lair_task]`, `#[lair_runtime]`) | **Working** | `lair_task` auto-impls Freezable; `lair_runtime` delegates to Copper and runs a compile-time safety audit (fails the build on unguarded actuation) |
 | Safety validation | **Working** | `PhysicsSafetyValidator` enforces actuator bounds, throttle/brake exclusion, speed-dependent steering (rollover), gear-change and speed limits; `enforce`/`safe_stop` for graceful degradation. `SafetyGuard` (Enforced/Advisory) is the checkpoint commands pass through; `SafeCommand` makes validation unbypassable by construction; `SafetyGuardTask` drops the guard into a task graph as a node (see `examples/safe_vehicle`). |
 | Health monitoring / watchdogs | **Working** | `lair_core::health`: deadline-based `Heartbeat` and a criticality-aware `HealthMonitor` that classifies the system Healthy/Degraded/Critical and signals when a safe-state transition is required. Clock-driven, fully deterministic. |
@@ -251,6 +252,7 @@ lair/
 +-- examples/
 |   +-- simple_robot/   # Minimal source -> task -> sink example
 |   +-- safe_vehicle/   # SafetyGuardTask clamping unsafe commands in the graph
+|   +-- replay_demo/    # ReplaySource replaying a recorded stream as a virtual sensor
 +-- SPEC.md             # Full specification
 +-- SIMULATION.md       # Simulation architecture
 +-- ROADMAP.md          # Development roadmap
@@ -264,7 +266,7 @@ LAIR is part of the **Extelligence** ecosystem:
 
 | Project | Description | v0.1-beta Status |
 |---------|-------------|------------------|
-| **[Bagel](https://github.com/Extelligence-ai/bagel)** | Chat with your robot data | MCAP logging wired |
+| **[Bagel](https://github.com/Extelligence-ai/bagel)** | Chat with your robot data | MCAP logging + record/replay sources |
 | **[Biscuit](https://github.com/Extelligence-ai/biscuit)** | Physics-constrained AI safety | `PhysicsSafetyValidator` shipped |
 | **[Matcha](https://github.com/Extelligence-ai/matcha)** | Cloud fleet management &amp; monitoring | Coming soon |
 | **[NVIDIA Isaac Sim](https://developer.nvidia.com/isaac/sim)** | Robotics simulation | Trait defined, mock impl |

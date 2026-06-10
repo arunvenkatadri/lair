@@ -1,7 +1,15 @@
-//! LAIR Bagel — structured logging and telemetry.
+//! LAIR Bagel — structured logging, telemetry, and record/replay.
 //!
 //! Re-exports the MCAP logging backend from `cu29-unifiedlog` and provides
-//! convenience helpers for setting up LAIR logging with sensible defaults.
+//! convenience helpers for setting up LAIR logging with sensible defaults, plus
+//! the [`replay`] module for recording typed message streams and replaying them
+//! back into a task graph as virtual sensors.
+
+pub mod replay;
+
+pub use replay::{
+    encode_payloads, read_payloads, read_payloads_from_bytes, write_payloads, ReplaySource,
+};
 
 #[cfg(feature = "mcap")]
 pub use cu29_unifiedlog::mcap_backend::*;

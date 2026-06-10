@@ -32,6 +32,7 @@ members = [
     # Examples
     "examples/simple_robot",
     "examples/safe_vehicle",
+    "examples/replay_demo",
 ]
 
 [workspace.package]
