@@ -214,13 +214,13 @@ This is an honest accounting. "Working" means you can build against it today. "S
 | Message types (geometry, sensors, navigation, vehicle) | **Working** | Serialization roundtrip tested |
 | CLI (`lair new`, `build`, `run`, `doctor`) | **Working** | Project scaffolding, build/run wrappers, system checks |
 | Proc macros (`#[lair_task]`, `#[lair_runtime]`) | **Working** | `lair_task` auto-impls Freezable; `lair_runtime` delegates to Copper |
-| Safety validation | **Working** | `PhysicsSafetyValidator` enforces actuator bounds, throttle/brake exclusion, speed-dependent steering (rollover), gear-change and speed limits; `enforce`/`safe_stop` for graceful degradation. Call it from your control sink &mdash; not yet auto-inserted into the DAG. |
+| Safety validation | **Working** | `PhysicsSafetyValidator` enforces actuator bounds, throttle/brake exclusion, speed-dependent steering (rollover), gear-change and speed limits; `enforce`/`safe_stop` for graceful degradation. `SafetyGuard` (Enforced/Advisory) is the checkpoint commands pass through; `SafeCommand` makes validation unbypassable by construction. |
 | Simulation bridge | **Stub** | `SimBridge` trait defined, `MockSimBridge` is in-memory only |
 | Fleet management, cloud sync | Not started | Planned for v0.2 |
 | Full Isaac Sim integration | Not started | Planned for v0.3 |
 | Certification tooling | Not started | Planned for v0.3 |
 
-The safety architecture is designed into LAIR from the ground up &mdash; every control command flows through a `SafetyValidator` before reaching actuators. As of v0.1-beta that validator is real: `PhysicsSafetyValidator` in [`lair-biscuit`](./crates/lair-biscuit) rejects commands that violate actuator bounds or the vehicle's dynamic envelope (e.g. steering hard enough to roll at speed), and can clamp commands back into the safe envelope or issue a controlled stop for limp-home behavior. What's still coming: automatic insertion of the validator into the task graph so it can't be bypassed by construction.
+The safety architecture is designed into LAIR from the ground up &mdash; every control command flows through a safety checkpoint before reaching actuators. As of v0.1-beta that checkpoint is real: `PhysicsSafetyValidator` in [`lair-biscuit`](./crates/lair-biscuit) rejects commands that violate actuator bounds or the vehicle's dynamic envelope (e.g. steering hard enough to roll at speed), and can clamp commands back into the safe envelope or issue a controlled stop for limp-home behavior. `SafetyGuard` wraps it with the Enforced/Advisory modes from the [spec](./SPEC.md), and the `SafeCommand` newtype makes the checkpoint **unbypassable by construction**: it has no public constructor, so the only way to obtain one is through the validator &mdash; an actuator whose hardware API accepts only a `SafeCommand` literally cannot be driven by an unvalidated command. What's still coming: a proc-macro that auto-inserts the guard as a node in the task graph.
 
 ---
 

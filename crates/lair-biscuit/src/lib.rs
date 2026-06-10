@@ -169,6 +169,56 @@ impl SafetyViolation {
     }
 }
 
+/// A [`ControlCommand`] that has been approved or corrected by a safety validator.
+///
+/// `SafeCommand` has no public constructor: the *only* ways to obtain one are
+/// [`PhysicsSafetyValidator::approve`] (validation succeeded) and
+/// [`PhysicsSafetyValidator::clamp_to_safe`] / the [`SafetyGuard`] (the command was
+/// corrected back into the safe envelope). This makes safety **unbypassable by
+/// construction**: an actuator whose hardware-facing API accepts only a
+/// `SafeCommand` cannot be driven by a command that never passed the validator.
+///
+/// ```
+/// use lair_biscuit::{PhysicsSafetyValidator, SafeCommand};
+/// use lair_msgs::{ControlCommand, Gear, VehicleState};
+///
+/// // An actuator that physically refuses to act on unvalidated input.
+/// fn drive_motors(_cmd: &SafeCommand) { /* touch hardware */ }
+///
+/// let v = PhysicsSafetyValidator::default();
+/// let raw = ControlCommand { throttle: 0.2, brake: 0.0, steering: 0.0, gear: Gear::Drive };
+/// let safe = v.approve(&raw, &VehicleState::default()).unwrap();
+/// drive_motors(&safe);            // ✅ only reachable via the validator
+/// // drive_motors(&raw);          // ❌ does not compile: raw is not a SafeCommand
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SafeCommand(ControlCommand);
+
+impl SafeCommand {
+    /// The underlying validated command.
+    pub fn command(&self) -> ControlCommand {
+        self.0
+    }
+
+    /// A reference to the underlying validated command.
+    pub fn get(&self) -> &ControlCommand {
+        &self.0
+    }
+}
+
+impl core::ops::Deref for SafeCommand {
+    type Target = ControlCommand;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<SafeCommand> for ControlCommand {
+    fn from(safe: SafeCommand) -> Self {
+        safe.0
+    }
+}
+
 /// Validates a control command against safety constraints.
 ///
 /// Implementations check bounds on throttle, brake, steering, and any
@@ -354,6 +404,59 @@ impl PhysicsSafetyValidator {
         ControlCommand { throttle, brake, steering, gear: cmd.gear }
     }
 
+    /// Clamps a command back into the safe envelope given the current vehicle
+    /// state, accounting for the dynamic constraints [`enforce`](Self::enforce)
+    /// cannot see on its own (speed-dependent steering, the speed limit, and unsafe
+    /// gear changes).
+    ///
+    /// The result is guaranteed to satisfy
+    /// [`validate_with_state`](StatefulSafetyValidator::validate_with_state) for the
+    /// same `state`.
+    pub fn enforce_with_state(&self, cmd: &ControlCommand, state: &VehicleState) -> ControlCommand {
+        let mut out = self.enforce(cmd);
+        let speed = state.velocity.abs();
+
+        // Tighten steering to what is safe at this speed.
+        let steer_limit = self.limits.steering_limit_at_speed(speed);
+        out.steering = out.steering.clamp(-steer_limit, steer_limit);
+
+        // Do not accelerate at or beyond the speed limit.
+        if speed >= self.limits.max_speed {
+            out.throttle = 0.0;
+        }
+
+        // Refuse an unsafe drive/reverse change: hold the current gear, cut throttle.
+        if out.gear != state.gear
+            && is_motion_gear(out.gear)
+            && is_motion_gear(state.gear)
+            && speed > self.limits.max_speed_for_gear_change
+        {
+            out.gear = state.gear;
+            out.throttle = 0.0;
+        }
+
+        // Re-apply the Park rule in case the gear was just changed back.
+        if out.gear == Gear::Park {
+            out.throttle = 0.0;
+        }
+
+        out
+    }
+
+    /// Validates `cmd` against `state` and, on success, returns it wrapped as a
+    /// [`SafeCommand`]. This is the gateway for the "unbypassable by construction"
+    /// pattern: callers that need a `SafeCommand` must go through validation.
+    pub fn approve(&self, cmd: &ControlCommand, state: &VehicleState) -> LairResult<SafeCommand> {
+        self.validate_with_state(cmd, state)?;
+        Ok(SafeCommand(*cmd))
+    }
+
+    /// Corrects `cmd` into the safe envelope for `state` and returns it as a
+    /// [`SafeCommand`]. Always succeeds — this is the graceful-degradation path.
+    pub fn clamp_to_safe(&self, cmd: &ControlCommand, state: &VehicleState) -> SafeCommand {
+        SafeCommand(self.enforce_with_state(cmd, state))
+    }
+
     /// A controlled-stop command: no throttle, full brake, wheels centered,
     /// preserving the supplied gear. Used for limp-home / fail-operational states.
     pub fn safe_stop(&self, gear: Gear) -> ControlCommand {
@@ -381,6 +484,140 @@ impl StatefulSafetyValidator for PhysicsSafetyValidator {
         match self.first_violation(cmd, state) {
             None => Ok(()),
             Some(v) => v.into_err(),
+        }
+    }
+}
+
+/// How a [`SafetyGuard`] reacts when a command violates a constraint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SafetyMode {
+    /// Block the unsafe command and substitute a corrected one. Nothing unsafe
+    /// ever reaches the actuator. This is the production default.
+    #[default]
+    Enforced,
+    /// Let the original command through but flag the violation for telemetry.
+    /// Useful for shadow-deploying new limits without affecting behavior.
+    Advisory,
+}
+
+/// The outcome of running a command through a [`SafetyGuard`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum SafetyDecision {
+    /// The command satisfied every constraint and passed through unchanged.
+    Clear(SafeCommand),
+    /// (Enforced mode) The command violated a constraint and was corrected to the
+    /// safe command carried here.
+    Corrected { command: SafeCommand, violation: SafetyViolation },
+    /// (Advisory mode) The command violated a constraint but was passed through
+    /// unchanged, with the violation reported for telemetry.
+    AdvisoryPass { command: SafeCommand, violation: SafetyViolation },
+}
+
+impl SafetyDecision {
+    /// The [`SafeCommand`] that should actually be sent to the actuator.
+    pub fn command(&self) -> &SafeCommand {
+        match self {
+            Self::Clear(c)
+            | Self::Corrected { command: c, .. }
+            | Self::AdvisoryPass { command: c, .. } => c,
+        }
+    }
+
+    /// The violation that occurred, if any.
+    pub fn violation(&self) -> Option<SafetyViolation> {
+        match self {
+            Self::Clear(_) => None,
+            Self::Corrected { violation, .. } | Self::AdvisoryPass { violation, .. } => {
+                Some(*violation)
+            }
+        }
+    }
+
+    /// Whether a safety violation was detected (regardless of mode).
+    pub fn intervened(&self) -> bool {
+        !matches!(self, Self::Clear(_))
+    }
+}
+
+/// The safety guard from the LAIR architecture: the checkpoint every control
+/// command passes through on its way to the actuators.
+///
+/// A guard pairs a [`PhysicsSafetyValidator`] with a [`SafetyMode`] and keeps a
+/// running count of interventions for telemetry. Feed it each command together
+/// with the latest [`VehicleState`]; it returns a [`SafetyDecision`] whose
+/// [`command`](SafetyDecision::command) is a [`SafeCommand`] guaranteed to satisfy
+/// the validator.
+///
+/// ```
+/// use lair_biscuit::{SafetyGuard, SafetyMode};
+/// use lair_msgs::{ControlCommand, Gear, VehicleState};
+///
+/// let mut guard = SafetyGuard::enforced();
+/// let state = VehicleState { velocity: 25.0, gear: Gear::Drive, ..Default::default() };
+///
+/// // Hard steering at 25 m/s would roll the vehicle; the guard corrects it.
+/// let reckless = ControlCommand { throttle: 0.0, brake: 0.0, steering: 0.5, gear: Gear::Drive };
+/// let decision = guard.guard(&reckless, &state);
+/// assert!(decision.intervened());
+/// assert!(decision.command().steering.abs() < 0.5);
+/// assert_eq!(guard.intervention_count(), 1);
+/// ```
+#[derive(Debug, Clone, Copy)]
+pub struct SafetyGuard {
+    validator: PhysicsSafetyValidator,
+    mode: SafetyMode,
+    interventions: u64,
+}
+
+impl SafetyGuard {
+    /// Creates a guard with an explicit validator and mode.
+    pub fn new(validator: PhysicsSafetyValidator, mode: SafetyMode) -> Self {
+        Self { validator, mode, interventions: 0 }
+    }
+
+    /// A guard in [`SafetyMode::Enforced`] with default limits.
+    pub fn enforced() -> Self {
+        Self::new(PhysicsSafetyValidator::default(), SafetyMode::Enforced)
+    }
+
+    /// A guard in [`SafetyMode::Advisory`] with default limits.
+    pub fn advisory() -> Self {
+        Self::new(PhysicsSafetyValidator::default(), SafetyMode::Advisory)
+    }
+
+    /// The mode this guard operates in.
+    pub fn mode(&self) -> SafetyMode {
+        self.mode
+    }
+
+    /// The validator backing this guard.
+    pub fn validator(&self) -> &PhysicsSafetyValidator {
+        &self.validator
+    }
+
+    /// How many commands this guard has flagged as violations.
+    pub fn intervention_count(&self) -> u64 {
+        self.interventions
+    }
+
+    /// Runs `cmd` (against the current `state`) through the guard, returning the
+    /// [`SafetyDecision`]. Increments the intervention counter on any violation.
+    pub fn guard(&mut self, cmd: &ControlCommand, state: &VehicleState) -> SafetyDecision {
+        match self.validator.first_violation(cmd, state) {
+            None => SafetyDecision::Clear(SafeCommand(*cmd)),
+            Some(violation) => {
+                self.interventions += 1;
+                match self.mode {
+                    SafetyMode::Enforced => SafetyDecision::Corrected {
+                        command: self.validator.clamp_to_safe(cmd, state),
+                        violation,
+                    },
+                    SafetyMode::Advisory => SafetyDecision::AdvisoryPass {
+                        command: SafeCommand(*cmd),
+                        violation,
+                    },
+                }
+            }
         }
     }
 }
@@ -576,5 +813,105 @@ mod tests {
         let v = PhysicsSafetyValidator::default();
         let viol = v.first_violation(&cmd(0.5, 0.5, 0.0, Gear::Drive), &state(0.0, Gear::Drive));
         assert!(matches!(viol, Some(SafetyViolation::ThrottleBrakeConflict { .. })));
+    }
+
+    // ── State-aware enforcement ─────────────────────────────────────
+
+    #[test]
+    fn enforce_with_state_always_produces_valid_command() {
+        let v = PhysicsSafetyValidator::default();
+        // A spread of nasty commands paired with various states.
+        let cmds = [
+            cmd(1.0, 0.0, 0.6, Gear::Drive),
+            cmd(0.8, 0.8, -0.6, Gear::Reverse),
+            cmd(0.5, 0.0, 0.0, Gear::Park),
+            cmd(f64::NAN, 0.0, 0.0, Gear::Drive),
+            cmd(0.9, 0.0, 0.4, Gear::Drive),
+        ];
+        let states = [
+            state(0.0, Gear::Park),
+            state(15.0, Gear::Drive),
+            state(30.0, Gear::Drive),
+            state(8.0, Gear::Reverse),
+        ];
+        for c in &cmds {
+            for s in &states {
+                let safe = v.enforce_with_state(c, s);
+                assert!(
+                    v.validate_with_state(&safe, s).is_ok(),
+                    "enforce_with_state produced an invalid command: {safe:?} for state {s:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn enforce_with_state_holds_gear_when_moving() {
+        let v = PhysicsSafetyValidator::default();
+        let moving = state(10.0, Gear::Drive);
+        let safe = v.enforce_with_state(&cmd(0.3, 0.0, 0.0, Gear::Reverse), &moving);
+        assert_eq!(safe.gear, Gear::Drive); // refused the shift
+        assert_eq!(safe.throttle, 0.0);
+    }
+
+    #[test]
+    fn approve_returns_safe_command_only_when_valid() {
+        let v = PhysicsSafetyValidator::default();
+        let s = state(0.0, Gear::Drive);
+        assert!(v.approve(&cmd(0.3, 0.0, 0.1, Gear::Drive), &s).is_ok());
+        assert!(v.approve(&cmd(0.5, 0.5, 0.0, Gear::Drive), &s).is_err());
+    }
+
+    #[test]
+    fn safe_command_exposes_inner() {
+        let v = PhysicsSafetyValidator::default();
+        let s = state(0.0, Gear::Drive);
+        let safe = v.approve(&cmd(0.3, 0.0, 0.1, Gear::Drive), &s).unwrap();
+        assert_eq!(safe.throttle, 0.3); // via Deref
+        assert_eq!(safe.command().steering, 0.1);
+        let raw: ControlCommand = safe.into();
+        assert_eq!(raw.throttle, 0.3);
+    }
+
+    // ── SafetyGuard ─────────────────────────────────────────────────
+
+    #[test]
+    fn guard_clear_passes_through_unchanged() {
+        let mut g = SafetyGuard::enforced();
+        let s = state(5.0, Gear::Drive);
+        let d = g.guard(&cmd(0.2, 0.0, 0.05, Gear::Drive), &s);
+        assert!(matches!(d, SafetyDecision::Clear(_)));
+        assert!(!d.intervened());
+        assert_eq!(g.intervention_count(), 0);
+    }
+
+    #[test]
+    fn guard_enforced_corrects_and_counts() {
+        let mut g = SafetyGuard::enforced();
+        let s = state(25.0, Gear::Drive);
+        let d = g.guard(&cmd(0.0, 0.0, 0.5, Gear::Drive), &s);
+        assert!(matches!(d, SafetyDecision::Corrected { .. }));
+        assert!(d.command().steering.abs() < 0.5);
+        // Corrected command must itself be valid.
+        assert!(g.validator().validate_with_state(d.command().get(), &s).is_ok());
+        assert_eq!(g.intervention_count(), 1);
+    }
+
+    #[test]
+    fn guard_advisory_passes_original_but_flags() {
+        let mut g = SafetyGuard::advisory();
+        let s = state(25.0, Gear::Drive);
+        let reckless = cmd(0.0, 0.0, 0.5, Gear::Drive);
+        let d = g.guard(&reckless, &s);
+        assert!(matches!(d, SafetyDecision::AdvisoryPass { .. }));
+        assert_eq!(d.command().steering, 0.5); // unchanged
+        assert!(d.violation().is_some());
+        assert_eq!(g.intervention_count(), 1);
+    }
+
+    #[test]
+    fn guard_default_mode_is_enforced() {
+        assert_eq!(SafetyMode::default(), SafetyMode::Enforced);
+        assert_eq!(SafetyGuard::enforced().mode(), SafetyMode::Enforced);
     }
 }
