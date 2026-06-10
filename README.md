@@ -215,6 +215,7 @@ This is an honest accounting. "Working" means you can build against it today. "S
 | CLI (`lair new`, `build`, `run`, `doctor`) | **Working** | Project scaffolding, build/run wrappers, system checks |
 | Proc macros (`#[lair_task]`, `#[lair_runtime]`) | **Working** | `lair_task` auto-impls Freezable; `lair_runtime` delegates to Copper |
 | Safety validation | **Working** | `PhysicsSafetyValidator` enforces actuator bounds, throttle/brake exclusion, speed-dependent steering (rollover), gear-change and speed limits; `enforce`/`safe_stop` for graceful degradation. `SafetyGuard` (Enforced/Advisory) is the checkpoint commands pass through; `SafeCommand` makes validation unbypassable by construction. |
+| Health monitoring / watchdogs | **Working** | `lair_core::health`: deadline-based `Heartbeat` and a criticality-aware `HealthMonitor` that classifies the system Healthy/Degraded/Critical and signals when a safe-state transition is required. Clock-driven, fully deterministic. |
 | Simulation bridge | **Stub** | `SimBridge` trait defined, `MockSimBridge` is in-memory only |
 | Fleet management, cloud sync | Not started | Planned for v0.2 |
 | Full Isaac Sim integration | Not started | Planned for v0.3 |

@@ -230,5 +230,9 @@ pub mod prelude {
         Clock, Freezable, LairConfig, LairContext, LairError, LairMsg, LairMsgPayload,
         LairResult, LairSink, LairSource, LairTask,
     };
+    // Health monitoring / watchdogs
+    pub use lair_core::prelude::{
+        Criticality, Heartbeat, HealthMonitor, HealthReport, HealthState,
+    };
     pub use lair_derive::{lair_runtime, lair_task};
 }

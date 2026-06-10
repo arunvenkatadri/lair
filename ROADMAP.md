@@ -74,7 +74,7 @@ Q2 2026            Q3 2026           Q4 2026               2027
 | Task Trait System | P0 | 🔴 | `LairSource`, `LairTask`, `LairSink` |
 | RON Config Parser | P0 | 🔴 | Task graph definition |
 | Monotonic Clock | P0 | 🔴 | High-precision, mockable |
-| Health Monitoring | P0 | 🔴 | Heartbeats, watchdogs |
+| Health Monitoring | P0 | 🟡 | `lair_core::health`: `Heartbeat` + `HealthMonitor` (deadline watchdogs, criticality-aware health verdict); not yet auto-wired to the scheduler |
 | Graceful Degradation | P0 | 🟡 | `PhysicsSafetyValidator::enforce`/`safe_stop` provide limp-home; not yet wired runtime-wide |
 
 ### Message Types

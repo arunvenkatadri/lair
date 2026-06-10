@@ -7,6 +7,8 @@ pub use cu29_clock as clock;
 pub use cu29_traits as traits;
 pub use cu29_value as value;
 
+pub mod health;
+
 // ── LAIR type aliases (concrete types) ──
 
 /// Standard result type for all LAIR operations.
@@ -53,6 +55,11 @@ pub mod prelude {
 
     // Time types
     pub use cu29_clock::{CuDuration, CuTime};
+
+    // Health monitoring
+    pub use super::health::{
+        Criticality, Heartbeat, HealthMonitor, HealthReport, HealthState,
+    };
 
     // Message convenience macros
     pub use cu29_runtime::input_msg;
