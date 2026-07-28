@@ -34,6 +34,8 @@ LAIR is a robotics runtime for commercial and industrial deployments &mdash; aut
 
 ## Why LAIR?
 
+### Coming from ROS
+
 | ROS Pain Point | LAIR Solution |
 |----------------|---------------|
 | `source setup.bash` in every terminal | Rust modules &mdash; zero environment setup |
@@ -41,6 +43,21 @@ LAIR is a robotics runtime for commercial and industrial deployments &mdash; aut
 | Serialization overhead on message bus | Zero-copy message passing between tasks |
 | Hard to replay and analyze logs | Unified MCAP logging with deterministic replay |
 | No embedded story (MicroROS) | Runtime and traits compile for `no_std`; no separate embedded API |
+
+Everything in this table is delivered by the [Copper](https://github.com/copper-project/copper-rs) engine at LAIR's core &mdash; if you adopt Copper directly, you get these too. What LAIR adds is the layer on top.
+
+### Coming from Copper
+
+| Copper Gap | LAIR Addition | Status |
+|------------|---------------|--------|
+| Low-level systems API | `LairSource` / `LairTask` / `LairSink` traits, one prelude, `#[lair_task]` and `#[lair_runtime]` macros | Working |
+| No project toolchain | `lair new` / `build` / `run` / `doctor` &mdash; scaffold to running robot in minutes | Working |
+| Few standard message types | `lair-msgs`: geometry, sensors, navigation, vehicle | Working |
+| No safety validation path | Biscuit safety layer &mdash; every control command flows through a `SafetyValidator` before actuators | Trait defined; enforcement coming |
+| No simulator integration | Isaac Sim bridge via the `SimBridge` trait | Trait defined; mock impl |
+| No fleet / cloud story | Matcha fleet management and cloud sync | Planned, v0.2 |
+
+If you're happy writing directly against a runtime engine and don't need the safety or tooling layers, Copper alone may be all you need &mdash; and we'd encourage it. LAIR is for teams shipping production systems who want the batteries included.
 
 ---
 
