@@ -1,6 +1,6 @@
 # From LAIR to Sencha
 
-Sencha is the new project name. The research direction, Copper foundation, and Extelligence affiliation are unchanged.
+Sencha is the new project name. The research direction and Copper foundation are unchanged. Its initial public home will be a personal research site; see the [publishing plan](WEBSITE_POSITIONING.md) for later Extelligence placement.
 
 | Previous name | New name |
 |---|---|

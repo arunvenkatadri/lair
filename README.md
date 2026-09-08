@@ -23,6 +23,8 @@
 
 Formerly LAIR, Sencha is named after the tea its founder drinks every morning. See the [rename notes](./MIGRATING_TO_SENCHA.md) for package, API, and CLI changes.
 
+Sencha is currently [Arun Venkatadri's](https://github.com/arunvenkatadri) personal research project. A standalone site is planned for a blog and research-style experiment reports. Every experiment aims to produce results the ROS and Copper communities can learn from, with methods, findings, limitations, and reproducible artifacts published together. See the [publishing plan](./WEBSITE_POSITIONING.md).
+
 **Built on [Copper](https://github.com/copper-project/copper-rs).** The DAG scheduler, message-passing machinery, clock, unified logging infrastructure, and task execution model come from the Copper robotics framework created by [Gbin](https://github.com/gbin) and the Copper contributors. Sencha maintains a fork for experimentation, adds its own API/tooling and direct MCAP backend, and explores further architectural changes. See [Acknowledgments](#acknowledgments).
 
 Our long-term ambition is to replace ROS as the foundation of a robot application. Our research obligation is to demonstrate which architectural changes improve robot behavior, predictability, or reliability, and under what assumptions. Industrial robots provide the application setting; researchers and engineers from both communities are welcome to participate.
@@ -201,7 +203,7 @@ sencha/
 
 ## Integrations
 
-Sencha is part of the **Extelligence** ecosystem:
+Sencha is initially developed and presented as a personal project. Related tools and potential integrations are listed below; placement on the Extelligence site is planned after the research gains traction:
 
 | Project | Description | v0.1-beta Status |
 |---------|-------------|------------------|
