@@ -1,5 +1,7 @@
 # LAIR Design Notes
 
+September 2026 positioning: LAIR explores a successor to ROS through original systems research on a Copper foundation. Industrial robots remain the application focus; ROS and Copper contributors and academic collaborators are welcome. See [RESEARCH_AGENDA.md](RESEARCH_AGENDA.md). The January notes below record historical design discussions, not verified implementation status.
+
 ## Open Question: Log Format (revisit later)
 
 ### Current Understanding
@@ -26,13 +28,13 @@ Deferred. Probably just use MCAP for recording, Parquet for analysis.
 
 ## Other Decisions Made
 
-### Markets (Commercial/Industrial Only)
+### Application Markets
 1. Autonomous Vehicles
 2. Warehouse / Industrial
 3. Agriculture / Construction
 4. Commercial robotics
 
-NOT: Research, academia, education
+Research and academic collaboration are part of the project; these markets describe the application focus.
 
 ### Feature Flags
 ```toml
@@ -56,4 +58,3 @@ ml = []       # Optional - inference
 ---
 
 *Last updated: January 2026*
-

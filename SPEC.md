@@ -2,14 +2,16 @@
 ## Layered Autonomous Intelligence Runtime
 
 **Version**: 0.1.0-draft  
-**Status**: Design Phase  
+**Status**: Historical design draft; not an implementation reference
 **Last Updated**: January 2026
 
 ---
 
 ## Executive Summary
 
-LAIR is a next-generation robotics operating system built from scratch in Rust. It takes inspiration from the best ideas in Copper (deterministic execution), integrates Biscuit (physics-constrained safety) and Bagel (data intelligence) as first-class citizens, and adds everything missing to create a complete robotics platform.
+LAIR is an experimental robotics systems platform exploring a successor to ROS, built in Rust on a fork of Copper. Its research program evaluates new execution architectures and shares reusable results with the ROS and Copper communities. See [RESEARCH_AGENDA.md](RESEARCH_AGENDA.md) for the current direction and [README.md](README.md) for implementation status.
+
+The schemas, APIs, comparisons, integrations, and commands below are historical design proposals. They are not claims that these capabilities currently exist; the runtime and public API have diverged from this draft.
 
 ### Why LAIR Exists
 
@@ -602,4 +604,3 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) and [ROADMAP.md](./ROADMAP.md).
 ---
 
 *LAIR is part of the Extelligence ecosystem, alongside Bagel and Biscuit.*
-
