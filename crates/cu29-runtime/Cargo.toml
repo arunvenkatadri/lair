@@ -1,7 +1,7 @@
 [package]
 name = "cu29-runtime"
-description = "LAIR Runtime Runtime crate. LAIR is an engine for robotics."
-documentation = "https://docs.rs/lair"
+description = "Sencha Runtime Runtime crate. Sencha is an engine for robotics."
+documentation = "https://docs.rs/sencha"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

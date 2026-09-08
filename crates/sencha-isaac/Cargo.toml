@@ -1,7 +1,6 @@
 [package]
-name = "cu29-reflect-derive"
-description = "No-op fallback derive for Sencha reflection when reflect is disabled"
-readme = "README.md"
+name = "sencha-isaac"
+description = "Sencha Isaac Sim integration (v0.1 placeholder)"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -11,5 +10,5 @@ categories.workspace = true
 homepage.workspace = true
 repository.workspace = true
 
-[lib]
-proc-macro = true
+[dependencies]
+sencha-core = { workspace = true }

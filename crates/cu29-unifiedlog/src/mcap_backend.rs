@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 /// Maps a `UnifiedLogType` to its MCAP channel topic name.
+/// The legacy `/lair/*` namespace is retained for recorded-data compatibility.
 fn topic_for(entry_type: UnifiedLogType) -> &'static str {
     match entry_type {
         UnifiedLogType::StructuredLogLine => "/lair/log",

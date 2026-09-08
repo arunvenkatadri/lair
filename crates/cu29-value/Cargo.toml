@@ -1,6 +1,6 @@
 [package]
 name = "cu29-value"
-description = "This is a fork of Value with custom types added for LAIR like the time and units."
+description = "This is a fork of Value with custom types added for Sencha like the time and units."
 
 version.workspace = true
 edition.workspace = true

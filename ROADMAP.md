@@ -1,8 +1,8 @@
-# LAIR Roadmap
+# Sencha Roadmap
 
 ## Vision
 
-**LAIR** (Layered Autonomous Intelligence Runtime) is an experimental robotics systems platform exploring a successor to ROS. Built in Rust on Copper, it evaluates architectural changes for dependable robot applications and shares reusable results with the ROS and Copper communities.
+**Sencha** is an experimental robotics systems platform exploring a successor to ROS. Built in Rust on Copper, it evaluates architectural changes for dependable robot applications and shares reusable results with the ROS and Copper communities.
 
 The current target is an **early-2027 paper and reproducible artifact** demonstrating one original architectural contribution on a complete robot application. See [RESEARCH_AGENDA.md](RESEARCH_AGENDA.md) for the active research direction. The release phases, dates, and status tables below are historical product planning, not current implementation status or release commitments; use the [README](README.md) and [dated source assessment](RESEARCH.md) for that distinction.
 
@@ -40,7 +40,7 @@ The current target is an **early-2027 paper and reproducible artifact** demonstr
 │  ├─ For service robots, manipulation, voice commands           │
 │  └─ Future: Evolve into true physical model for safety-critical│
 │                                                                 │
-│  LAIR (Robot OS)                                                │
+│  Sencha (Robot OS)                                                │
 │  ├─ Deterministic runtime                                       │
 │  ├─ Production scheduling (DAG, Rate Monotonic, Time-Triggered)│
 │  ├─ Zero-copy messaging                                        │
@@ -73,7 +73,7 @@ Q2 2026            Q3 2026           Q4 2026               2027
 | Deterministic DAG Scheduler | P0 | 🔴 | Execute tasks in dependency order |
 | Rate Monotonic Scheduler | P0 | 🔴 | Priority by period |
 | Zero-Copy Message Bus | P0 | 🔴 | Lock-free, bounded queues |
-| Task Trait System | P0 | 🔴 | `LairSource`, `LairTask`, `LairSink` |
+| Task Trait System | P0 | 🔴 | `SenchaSource`, `SenchaTask`, `SenchaSink` |
 | RON Config Parser | P0 | 🔴 | Task graph definition |
 | Monotonic Clock | P0 | 🔴 | High-precision, mockable |
 | Health Monitoring | P0 | 🔴 | Heartbeats, watchdogs |
@@ -97,10 +97,10 @@ Q2 2026            Q3 2026           Q4 2026               2027
 ### CLI (Basic)
 | Feature | Priority | Status | Notes |
 |---------|----------|--------|-------|
-| `lair new` | P0 | 🔴 | Create new project from template |
-| `lair build` | P0 | 🔴 | Compile with feature flags |
-| `lair run` | P0 | 🔴 | Execute robot |
-| `lair doctor` | P1 | 🔴 | Diagnose common issues |
+| `sencha new` | P0 | 🔴 | Create new project from template |
+| `sencha build` | P0 | 🔴 | Compile with feature flags |
+| `sencha run` | P0 | 🔴 | Execute robot |
+| `sencha doctor` | P1 | 🔴 | Diagnose common issues |
 
 ---
 
@@ -176,7 +176,7 @@ Q2 2026            Q3 2026           Q4 2026               2027
 | Parquet-based Recording | P0 | 🔴 | Bagel-compatible log format |
 | Replay Runtime | P0 | 🔴 | Play back recorded data |
 | Replay Sources | P0 | 🔴 | Virtual sensors from logs |
-| CLI Record/Replay | P0 | 🔴 | `lair record`, `lair replay` |
+| CLI Record/Replay | P0 | 🔴 | `sencha record`, `sencha replay` |
 
 ### Testing
 | Feature | Priority | Status | Notes |
@@ -218,7 +218,7 @@ Q2 2026            Q3 2026           Q4 2026               2027
 
 ---
 
-## v0.5 — Embedded (lair-micro)
+## v0.5 — Embedded (sencha-micro)
 
 **Goal:** Same API on microcontrollers.
 
@@ -263,17 +263,17 @@ All integrations are optional via Cargo features:
 ```toml
 [features]
 default = []
-biscuit = ["dep:lair-biscuit"]   # LLM safety - service robots
-bagel = ["dep:lair-bagel"]       # Smart logging
-matcha = ["dep:lair-matcha"]     # Cloud sync
-ml = ["dep:lair-ml"]             # ML inference
+biscuit = ["dep:sencha-biscuit"]   # LLM safety - service robots
+bagel = ["dep:sencha-bagel"]       # Smart logging
+matcha = ["dep:sencha-matcha"]     # Cloud sync
+ml = ["dep:sencha-ml"]             # ML inference
 ```
 
 Build for your market:
 ```bash
-lair build --features bagel,matcha           # AV, Industrial
-lair build --features biscuit,bagel,matcha   # Service robots
-lair build --no-default-features             # Minimal embedded
+sencha build --features bagel,matcha           # AV, Industrial
+sencha build --features biscuit,bagel,matcha   # Service robots
+sencha build --no-default-features             # Minimal embedded
 ```
 
 ---
@@ -299,4 +299,4 @@ lair build --no-default-features             # Minimal embedded
 
 ---
 
-*LAIR is part of the Extelligence ecosystem alongside Bagel, Biscuit, and Matcha.*
+*Sencha is part of the Extelligence ecosystem alongside Bagel, Biscuit, and Matcha.*

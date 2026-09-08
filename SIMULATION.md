@@ -1,4 +1,4 @@
-# LAIR Simulation Architecture
+# Sencha Simulation Architecture
 
 **Version**: 0.1.0-draft
 **Status**: Historical design draft; external simulation is a mock on main
@@ -10,7 +10,7 @@
 
 The integration designs and dates below are proposals. The [research agenda](RESEARCH_AGENDA.md) prioritizes the simulator or robot platform needed to evaluate the first architectural contribution; full Isaac Sim support is not a prerequisite for the early-2027 paper/artifact target. See the [README](README.md) for current implementation status.
 
-LAIR's simulation strategy prioritizes **NVIDIA Isaac Sim** as the primary simulation platform, with record/replay as the initial testing mechanism and Bevy as an open-source fallback. This aligns with LAIR's target markets (AV, industrial, agriculture) which already use NVIDIA hardware.
+Sencha's simulation strategy prioritizes **NVIDIA Isaac Sim** as the primary simulation platform, with record/replay as the initial testing mechanism and Bevy as an open-source fallback. This aligns with Sencha's target markets (AV, industrial, agriculture) which already use NVIDIA hardware.
 
 ### Strategy Overview
 
@@ -29,7 +29,7 @@ Q2 2026                     Q4 2026                      2027
 
 ### Market Alignment
 
-LAIR's target customers already use NVIDIA:
+Sencha's target customers already use NVIDIA:
 
 | Market | NVIDIA Hardware | Why Isaac Sim Matters |
 |--------|----------------|----------------------|
@@ -55,9 +55,9 @@ LAIR's target customers already use NVIDIA:
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│                      LAIR Application                          │
+│                      Sencha Application                          │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │  Your Robot Tasks (LairSource, LairTask, LairSink)      │  │
+│  │  Your Robot Tasks (SenchaSource, SenchaTask, SenchaSink)      │  │
 │  │  - ObstacleDetector                                      │  │
 │  │  - PathPlanner                                           │  │
 │  │  - MotorController                                       │  │
@@ -65,14 +65,14 @@ LAIR's target customers already use NVIDIA:
 │                           │                                     │
 │                           ▼                                     │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │              LAIR Runtime (Pure Rust)                    │  │
+│  │              Sencha Runtime (Pure Rust)                    │  │
 │  │  Scheduler • Transforms • Logging • Safety • Parameters  │  │
 │  └──────────────────────────────────────────────────────────┘  │
 │                           │                                     │
 │         ┌─────────────────┼─────────────────┐                  │
 │         ▼                 ▼                 ▼                  │
 │  ┌────────────┐    ┌────────────┐    ┌────────────┐          │
-│  │   Linux    │    │  lair-micro│    │ lair-isaac │          │
+│  │   Linux    │    │  sencha-micro│    │ sencha-isaac │          │
 │  │  (Real HW) │    │ (Embedded) │    │   (Sim)    │          │
 │  └────────────┘    └────────────┘    └────────────┘          │
 │                                              │                  │
@@ -115,7 +115,7 @@ LAIR's target customers already use NVIDIA:
 (
     runtime: (
         mode: Replay,
-        data_source: "test_runs/nominal_case.lair",
+        data_source: "test_runs/nominal_case.sencha",
     ),
     tasks: [
         // Same task definitions as production
@@ -128,17 +128,17 @@ LAIR's target customers already use NVIDIA:
 ### Implementation
 
 ```rust
-// crates/lair-core/src/replay.rs
-use lair_bagel::LairLog;
+// crates/sencha-core/src/replay.rs
+use sencha_bagel::SenchaLog;
 
 pub struct ReplayRuntime {
-    log: LairLog,
+    log: SenchaLog,
     playback_speed: f64,  // 1.0 = real-time, 0.0 = as fast as possible
 }
 
 impl ReplayRuntime {
-    pub fn new(path: &str) -> LairResult<Self> {
-        let log = LairLog::open(path)?;
+    pub fn new(path: &str) -> SenchaResult<Self> {
+        let log = SenchaLog::open(path)?;
         Ok(Self { log, playback_speed: 1.0 })
     }
 
@@ -149,12 +149,12 @@ impl ReplayRuntime {
 }
 
 // Replay sensor "drivers" just read from log
-#[lair::task]
+#[sencha::task]
 pub struct ReplayLidarSource {
     replay: Arc<Mutex<ReplayRuntime>>,
 }
 
-impl LairSource for ReplayLidarSource {
+impl SenchaSource for ReplayLidarSource {
     type Output = LaserScan;
 
     fn generate(&mut self, clock: &Clock, output: &mut LaserScan) {
@@ -190,7 +190,7 @@ Three integration options evaluated:
 **Cons**: FFI overhead, not pure Rust
 
 ```rust
-// crates/lair-isaac/src/lib.rs
+// crates/sencha-isaac/src/lib.rs
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 
@@ -201,7 +201,7 @@ pub struct IsaacSimBridge {
 }
 
 impl IsaacSimBridge {
-    pub fn new(world_path: &str) -> LairResult<Self> {
+    pub fn new(world_path: &str) -> SenchaResult<Self> {
         Python::with_gil(|py| {
             // Import Isaac Sim Python modules
             let sim = PyModule::import(py, "isaacsim")?;
@@ -215,7 +215,7 @@ impl IsaacSimBridge {
         })
     }
 
-    pub fn step(&self, dt: f64) -> LairResult<()> {
+    pub fn step(&self, dt: f64) -> SenchaResult<()> {
         Python::with_gil(|py| {
             self.sim_module
                 .as_ref(py)
@@ -224,7 +224,7 @@ impl IsaacSimBridge {
         })
     }
 
-    pub fn read_lidar(&self, prim_path: &str) -> LairResult<Vec<f32>> {
+    pub fn read_lidar(&self, prim_path: &str) -> SenchaResult<Vec<f32>> {
         Python::with_gil(|py| {
             let data = self.sim_module
                 .as_ref(py)
@@ -245,7 +245,7 @@ impl IsaacSimBridge {
 
 ```rust
 // Define protobuf schema
-// lair-isaac/proto/isaac_bridge.proto
+// sencha-isaac/proto/isaac_bridge.proto
 syntax = "proto3";
 
 service IsaacSimBridge {
@@ -280,12 +280,12 @@ pub struct GrpcIsaacBridge {
 }
 
 impl GrpcIsaacBridge {
-    pub async fn connect(addr: &str) -> LairResult<Self> {
+    pub async fn connect(addr: &str) -> SenchaResult<Self> {
         let client = IsaacSimBridgeClient::connect(addr).await?;
         Ok(Self { client })
     }
 
-    pub async fn step(&mut self, dt: f64) -> LairResult<()> {
+    pub async fn step(&mut self, dt: f64) -> SenchaResult<()> {
         let request = StepRequest { dt };
         self.client.step_simulation(request).await?;
         Ok(())
@@ -325,11 +325,11 @@ def serve():
 
 #### **Option 3: Zenoh Bridge (Future - Multi-Robot)**
 
-**Pros**: Same transport as multi-robot LAIR, discovery built-in
+**Pros**: Same transport as multi-robot Sencha, discovery built-in
 **Cons**: More complex, overkill for single robot sim
 
 ```rust
-// Use Zenoh for pub/sub between LAIR and Isaac Sim
+// Use Zenoh for pub/sub between Sencha and Isaac Sim
 use zenoh::prelude::*;
 
 pub struct ZenohIsaacBridge {
@@ -337,7 +337,7 @@ pub struct ZenohIsaacBridge {
 }
 
 impl ZenohIsaacBridge {
-    pub async fn new() -> LairResult<Self> {
+    pub async fn new() -> SenchaResult<Self> {
         let session = zenoh::open(zenoh::config::Config::default()).await?;
         Ok(Self { session })
     }
@@ -363,16 +363,16 @@ impl ZenohIsaacBridge {
 
 ### Architecture Pattern
 
-All simulated sensors implement the same `LairSource` trait as real sensors:
+All simulated sensors implement the same `SenchaSource` trait as real sensors:
 
 ```rust
 // Real hardware driver
-#[lair::task]
+#[sencha::task]
 pub struct VelodyneVLP16 {
     socket: UdpSocket,
 }
 
-impl LairSource for VelodyneVLP16 {
+impl SenchaSource for VelodyneVLP16 {
     type Output = LaserScan;
     fn generate(&mut self, clock: &Clock, output: &mut LaserScan) {
         // Read from UDP socket
@@ -380,13 +380,13 @@ impl LairSource for VelodyneVLP16 {
 }
 
 // Isaac Sim driver (same interface!)
-#[lair::task]
+#[sencha::task]
 pub struct IsaacLidar {
     bridge: Arc<IsaacSimBridge>,
     prim_path: String,  // "/World/Robot/lidar"
 }
 
-impl LairSource for IsaacLidar {
+impl SenchaSource for IsaacLidar {
     type Output = LaserScan;
     fn generate(&mut self, clock: &Clock, output: &mut LaserScan) {
         // Read from Isaac Sim via bridge
@@ -402,7 +402,7 @@ impl LairSource for IsaacLidar {
 #### **3D Lidar (Velodyne, Ouster, Livox)**
 
 ```rust
-// crates/lair-isaac/src/sensors/lidar.rs
+// crates/sencha-isaac/src/sensors/lidar.rs
 pub struct IsaacLidar3D {
     bridge: Arc<IsaacSimBridge>,
     config: LidarConfig,
@@ -418,7 +418,7 @@ pub struct LidarConfig {
     pub rotation_rate: f32,        // 10 Hz
 }
 
-impl LairSource for IsaacLidar3D {
+impl SenchaSource for IsaacLidar3D {
     type Output = PointCloud2;
 
     fn generate(&mut self, clock: &Clock, output: &mut PointCloud2) {
@@ -440,7 +440,7 @@ pub struct IsaacRGBDCamera {
     prim_path: String,
 }
 
-impl LairSource for IsaacRGBDCamera {
+impl SenchaSource for IsaacRGBDCamera {
     type Output = (Image, Image);  // (RGB, Depth)
 
     fn generate(&mut self, clock: &Clock, output: &mut (Image, Image)) {
@@ -469,7 +469,7 @@ pub struct ImuNoiseConfig {
     pub accel_bias_stddev: f64,
 }
 
-impl LairSource for IsaacIMU {
+impl SenchaSource for IsaacIMU {
     type Output = Imu;
 
     fn generate(&mut self, clock: &Clock, output: &mut Imu) {
@@ -490,7 +490,7 @@ pub struct IsaacGPS {
     world_origin_lat_lon: (f64, f64),  // Convert USD coords to GPS
 }
 
-impl LairSource for IsaacGPS {
+impl SenchaSource for IsaacGPS {
     type Output = NavSatFix;
 
     fn generate(&mut self, clock: &Clock, output: &mut NavSatFix) {
@@ -517,7 +517,7 @@ The same RON config works for real hardware and simulation:
 (
     runtime: (
         // Switch platforms via environment variable or CLI flag
-        mode: FromEnv("LAIR_PLATFORM"),  // "linux", "isaac_sim", "replay"
+        mode: FromEnv("Sencha_PLATFORM"),  // "linux", "isaac_sim", "replay"
 
         isaac_sim: Some((
             world: "assets/worlds/warehouse.usd",
@@ -553,7 +553,7 @@ The same RON config works for real hardware and simulation:
 
 ```rust
 // At runtime, resolve based on platform
-pub fn create_lidar(config: &TaskConfig, platform: Platform) -> Box<dyn LairSource> {
+pub fn create_lidar(config: &TaskConfig, platform: Platform) -> Box<dyn SenchaSource> {
     match platform {
         Platform::Linux => Box::new(VelodyneVLP16::new(config)),
         Platform::IsaacSim => Box::new(IsaacLidar::new(config)),
@@ -571,7 +571,7 @@ pub fn create_lidar(config: &TaskConfig, platform: Platform) -> Box<dyn LairSour
 ```rust
 #[cfg(test)]
 mod tests {
-    use lair_test::*;
+    use sencha_test::*;
 
     #[test]
     fn test_obstacle_detector() {
@@ -597,8 +597,8 @@ mod tests {
 ```rust
 #[test]
 fn test_full_stack_replay() {
-    let runtime = LairRuntime::new("test_config.ron")?;
-    runtime.set_platform(Platform::Replay("test_data.lair"));
+    let runtime = SenchaRuntime::new("test_config.ron")?;
+    runtime.set_platform(Platform::Replay("test_data.sencha"));
 
     runtime.run_for_duration(Duration::from_secs(10))?;
 
@@ -613,7 +613,7 @@ fn test_full_stack_replay() {
 #[test]
 #[cfg(feature = "isaac")]
 fn test_obstacle_avoidance_sim() {
-    let runtime = LairRuntime::new("sim_test.ron")?;
+    let runtime = SenchaRuntime::new("sim_test.ron")?;
     runtime.set_platform(Platform::IsaacSim {
         world: "test_worlds/obstacle_course.usd",
         headless: true,
@@ -633,7 +633,7 @@ fn test_obstacle_avoidance_sim() {
 
 ```yaml
 # .github/workflows/test.yml
-name: LAIR Tests
+name: Sencha Tests
 
 on: [push, pull_request]
 
@@ -678,11 +678,11 @@ jobs:
 ### Architecture
 
 ```rust
-// crates/lair-bevy/src/lib.rs
+// crates/sencha-bevy/src/lib.rs
 use bevy::prelude::*;
 use avian3d::prelude::*;
 
-#[lair::runtime(platform = "bevy")]
+#[sencha::runtime(platform = "bevy")]
 struct BevyRobot {
     physics: PhysicsPlugin,
     render: RenderPlugin,
@@ -693,7 +693,7 @@ pub struct BevyLidar {
     config: LidarConfig,
 }
 
-impl LairSource for BevyLidar {
+impl SenchaSource for BevyLidar {
     type Output = LaserScan;
 
     fn generate(&mut self, clock: &Clock, output: &mut LaserScan) {
@@ -726,7 +726,7 @@ impl LairSource for BevyLidar {
 - [ ] **Record/Replay system** (P0)
   - Parquet-based log format (Bagel-compatible)
   - Replay sources for all standard sensors
-  - CLI: `lair record`, `lair replay`
+  - CLI: `sencha record`, `sencha replay`
 
 ### v0.3: Simulation Testing
 - [ ] **Isaac Sim Python Bridge** (P0)
@@ -792,39 +792,39 @@ See updated `Cargo.toml` for:
 
 ```bash
 # Record live data
-lair record --output test_run_001.lair --duration 60s
+sencha record --output test_run_001.sencha --duration 60s
 
 # Record with topic filtering
-lair record -o data.lair --topics /lidar,/camera,/imu
+sencha record -o data.sencha --topics /lidar,/camera,/imu
 ```
 
 ### Replay
 
 ```bash
 # Replay at normal speed
-lair replay test_run_001.lair
+sencha replay test_run_001.sencha
 
 # Replay as fast as possible (CI testing)
-lair replay test_run_001.lair --speed 0
+sencha replay test_run_001.sencha --speed 0
 
 # Replay with visualization
-lair replay test_run_001.lair --visualize
+sencha replay test_run_001.sencha --visualize
 ```
 
 ### Simulation
 
 ```bash
 # Launch Isaac Sim simulation
-lair sim launch --world warehouse.usd --robot amr.urdf
+sencha sim launch --world warehouse.usd --robot amr.urdf
 
 # Headless mode (CI/CD)
-lair sim launch --world test.usd --headless
+sencha sim launch --world test.usd --headless
 
 # Run automated test scenario
-lair sim test scenarios/obstacle_avoidance.yaml
+sencha sim test scenarios/obstacle_avoidance.yaml
 
 # Generate synthetic data
-lair sim datagen --scenario parking_lot --samples 10000
+sencha sim datagen --scenario parking_lot --samples 10000
 ```
 
 ---
@@ -836,10 +836,10 @@ lair sim datagen --scenario parking_lot --samples 10000
 Write tasks once, run everywhere:
 
 ```rust
-#[lair::task]
+#[sencha::task]
 pub struct ObstacleDetector;
 
-impl LairTask for ObstacleDetector {
+impl SenchaTask for ObstacleDetector {
     type Input = LaserScan;
     type Output = ObstacleList;
 
@@ -913,4 +913,4 @@ let config = HybridConfig {
 
 ---
 
-*LAIR Simulation is part of the Extelligence ecosystem alongside Bagel, Biscuit, and Matcha.*
+*Sencha Simulation is part of the Extelligence ecosystem alongside Bagel, Biscuit, and Matcha.*

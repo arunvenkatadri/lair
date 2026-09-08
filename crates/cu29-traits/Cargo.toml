@@ -1,6 +1,6 @@
 [package]
 name = "cu29-traits"
-description = "Common systems and robotics traits designed to decouple the components of your robotic system. These can be used independently from the LAIR project."
+description = "Common systems and robotics traits designed to decouple the components of your robotic system. These can be used independently from the Sencha project."
 documentation = "https://docs.rs/cu29-traits"
 readme = "README.md"
 version.workspace = true

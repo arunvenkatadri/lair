@@ -1,6 +1,6 @@
-# LAIR Design Notes
+# Sencha Design Notes
 
-September 2026 positioning: LAIR explores a successor to ROS through original systems research on a Copper foundation. Industrial robots remain the application focus; ROS and Copper contributors and academic collaborators are welcome. See [RESEARCH_AGENDA.md](RESEARCH_AGENDA.md). The January notes below record historical design discussions, not verified implementation status.
+September 2026 positioning: Sencha explores a successor to ROS through original systems research on a Copper foundation. Industrial robots remain the application focus; ROS and Copper contributors and academic collaborators are welcome. See [RESEARCH_AGENDA.md](RESEARCH_AGENDA.md). The January notes below record historical design discussions, not verified implementation status.
 
 ## Open Question: Log Format (revisit later)
 
@@ -12,13 +12,13 @@ Matcha stores: Parquet in MotherDuck - SQL queries
 ```
 
 ### Questions to Answer
-1. Does LAIR write MCAP directly? Or something else?
-2. Is `.lair` a log format or just project config?
+1. Does Sencha write MCAP directly? Or something else?
+2. Is `.sencha` a log format or just project config?
 3. Do we need our own format or just use MCAP?
 
 ### Options Discussed
 - **MCAP**: Industry standard, Bagel already reads it, why reinvent?
-- **Custom .lair**: Only if we add value MCAP doesn't have
+- **Custom .sencha**: Only if we add value MCAP doesn't have
 - **DuckDB file**: Good for analysis, not for live recording
 
 ### Decision
@@ -51,7 +51,7 @@ ml = []       # Optional - inference
 - Future: May evolve into true physical model (non-LLM)
 
 ### Business Model
-- LAIR: Open source (Apache 2.0)
+- Sencha: Open source (Apache 2.0)
 - Matcha: SaaS ($$)
 - Enterprise support: Contracts ($$)
 

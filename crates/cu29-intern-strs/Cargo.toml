@@ -1,6 +1,6 @@
 [package]
 name = "cu29-intern-strs"
-description = "This is loader for the intern strings logged at build time by LAIR. It can be used independently from the lair project."
+description = "This is loader for the intern strings logged at build time by Sencha. It can be used independently from the sencha project."
 documentation = "https://docs.rs/cu29-intern-strs"
 version.workspace = true
 authors.workspace = true

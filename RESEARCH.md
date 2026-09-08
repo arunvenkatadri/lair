@@ -1,6 +1,6 @@
-# LAIR: Copper differentiation and early-2027 research plan
+# Sencha: pre-rename Copper assessment
 
-Assessment date: September 8, 2026. This is a source and documentation review, not an experimental validation or an exhaustive novelty search. Proposed contributions below are hypotheses to test.
+Assessment date: September 8, 2026. This snapshot predates the rename from LAIR to Sencha. Historical identifiers and commit references below are retained; relative file links point to the renamed source tree. This is a source and documentation review, not an experimental validation or an exhaustive novelty search. Proposed contributions below are hypotheses to test.
 
 **Updated research ambition:** the objective is an original robotics contribution that establishes a research identity beyond data infrastructure. See [RESEARCH_AGENDA.md](RESEARCH_AGENDA.md) for the revised recommendation and a concrete novelty test. The safety-contract plan below remains an engineering foundation and an initial, narrower proposal; it should not be treated as sufficient novelty by itself.
 
@@ -30,7 +30,7 @@ Copper's release notes list **v1.1.1, August 31, 2026**. Its rolling API documen
 | Simulation | `SimBridge` and `MockSimBridge` | Interface plus in-memory mock; no Isaac transport or physics implementation. |
 | Bagel/Matcha integration | Logging setup/re-exports; fleet operations in planning documents | No implemented natural-language query, fleet rollout, or cloud analytics pipeline was found in this checkout. |
 
-Local evidence: [API aliases](crates/lair-core/src/lib.rs), [macro implementation](crates/lair-derive/src/lib.rs), [CLI](crates/lair-cli/src/main.rs), [scaffolding](crates/lair-cli/src/new_project.rs), [messages](crates/lair-msgs/src/lib.rs), [MCAP backend](crates/cu29-unifiedlog/src/mcap_backend.rs), [safety stub](crates/lair-biscuit/src/lib.rs), [simulator mock](crates/lair-isaac/src/lib.rs), [logging wrapper](crates/lair-bagel/src/lib.rs).
+Local evidence: [API aliases](crates/sencha-core/src/lib.rs), [macro implementation](crates/sencha-derive/src/lib.rs), [CLI](crates/sencha-cli/src/main.rs), [scaffolding](crates/sencha-cli/src/new_project.rs), [messages](crates/sencha-msgs/src/lib.rs), [MCAP backend](crates/cu29-unifiedlog/src/mcap_backend.rs), [safety stub](crates/sencha-biscuit/src/lib.rs), [simulator mock](crates/sencha-isaac/src/lib.rs), [logging wrapper](crates/sencha-bagel/src/lib.rs).
 
 Several README comparisons need qualification. Copper already has a canonical prelude and project scaffolding through `cargo-cunew`, simulation hooks and a simulated balancebot example, and distributed replay in its documented API. Its component catalog includes sensor payloads and `cu-safetymon`, with watchdog/panic/fault behavior. Thus “no project toolchain,” “no simulator integration,” and a blanket absence of safety support are unsuitable comparisons. A specific actuator command contract could still differ from runtime fault monitoring. [Copper templates](https://copper-project.github.io/copper-rs/Project-Templates/), [Copper API](https://copper-project.github.io/copper-rs/api/cu29/index.html), [component catalog](https://cdn.copper-robotics.com/catalog/index.html).
 
@@ -53,7 +53,7 @@ Before presenting that branch as safety enforcement, resolve these specific gaps
 | `lair-biscuit/src/task.rs` and `lair-bagel/src/replay.rs` | Stateful tasks use empty `Freezable` implementations | Watchdog state and replay index are not restored by those implementations. |
 | `lair-bagel/src/replay.rs` | Emits one payload per cycle; fixture writer uses ordinal timestamps; reader discards timing | Ordered playback is not faithful timed replay or a closed-loop counterfactual experiment. |
 
-Inspect the exact files without changing branches using, for example, `git show 89c4f96:crates/lair-biscuit/src/task.rs`. Main has the same empty-freeze default through [Copper's `Freezable`](crates/cu29-runtime/src/cutask.rs) and [LAIR's task macro](crates/lair-derive/src/lib.rs).
+Inspect the exact files without changing branches using, for example, `git show 89c4f96:crates/lair-biscuit/src/task.rs`. Main has the same empty-freeze default through [Copper's `Freezable`](crates/cu29-runtime/src/cutask.rs) and [LAIR's task macro](crates/sencha-derive/src/lib.rs).
 
 These gaps suggest a tractable research question: **can a compiled task graph enforce state- and time-dependent actuation contracts, with a precise software guarantee and a reproducible record of every intervention?**
 
