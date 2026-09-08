@@ -1,6 +1,6 @@
 [package]
 name = "cu29-unifiedlog"
-description = "The super quick, linear, unified logging system (text + task data) used by LAIR. This crate can be used independently from the LAIR project."
+description = "The super quick, linear, unified logging system (text + task data) used by Sencha. This crate can be used independently from the Sencha project."
 documentation = "https://docs.rs/cu29-unifiedlog"
 readme = "README.md"
 version.workspace = true

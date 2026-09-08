@@ -1,4 +1,4 @@
-# LAIR — Experimental Robotics Systems
+# Sencha — Experimental Robotics Systems
 
 <p align="center">
   <em>Exploring a successor to ROS. Built in Rust on <a href="https://github.com/copper-project/copper-rs">Copper</a>.</em>
@@ -15,13 +15,15 @@
 
 ---
 
-> **Early development — v0.1-beta.** LAIR contains a Copper-derived runtime, API wrappers, CLI, and message types. Safety validation and external simulation are stubs on the main branch. The research contributions and migration path described below are objectives to investigate. See [What's in v0.1-beta](#whats-in-v01-beta) for implementation status.
+> **Early development — v0.1-beta.** Sencha contains a Copper-derived runtime, API wrappers, CLI, and message types. Safety validation and external simulation are stubs on the main branch. The research contributions and migration path described below are objectives to investigate. See [What's in v0.1-beta](#whats-in-v01-beta) for implementation status.
 
 ---
 
-**LAIR is an experimental robotics systems platform exploring a successor to ROS.** Built on Copper, it develops and evaluates new execution architectures, with reusable results for the ROS and Copper communities.
+**Sencha is an experimental robotics systems platform exploring a successor to ROS.** Built on Copper, it develops and evaluates new execution architectures, with reusable results for the ROS and Copper communities.
 
-**Built on [Copper](https://github.com/copper-project/copper-rs).** The DAG scheduler, message-passing machinery, clock, unified logging infrastructure, and task execution model come from the Copper robotics framework created by [Gbin](https://github.com/gbin) and the Copper contributors. LAIR maintains a fork for experimentation, adds its own API/tooling and direct MCAP backend, and explores further architectural changes. See [Acknowledgments](#acknowledgments).
+Formerly LAIR, Sencha is named after the tea its founder drinks every morning. See the [rename notes](./MIGRATING_TO_SENCHA.md) for package, API, and CLI changes.
+
+**Built on [Copper](https://github.com/copper-project/copper-rs).** The DAG scheduler, message-passing machinery, clock, unified logging infrastructure, and task execution model come from the Copper robotics framework created by [Gbin](https://github.com/gbin) and the Copper contributors. Sencha maintains a fork for experimentation, adds its own API/tooling and direct MCAP backend, and explores further architectural changes. See [Acknowledgments](#acknowledgments).
 
 Our long-term ambition is to replace ROS as the foundation of a robot application. Our research obligation is to demonstrate which architectural changes improve robot behavior, predictability, or reliability, and under what assumptions. Industrial robots provide the application setting; researchers and engineers from both communities are welcome to participate.
 
@@ -40,17 +42,17 @@ Useful results should travel: we intend to share methods, benchmarks, negative r
 - **Compile-time graph validation** &mdash; wiring errors caught at `cargo build`, not at 2 AM in the field
 - **MCAP recording** &mdash; a direct backend for unified log sections; payload decoding and complete state restoration are separate requirements
 - **Mockable clock** &mdash; nanosecond-precision monotonic clock with mock support for deterministic testing
-- **Rust-native** &mdash; Copper includes embedded `no_std` support; LAIR's full package/feature combinations need separate validation
+- **Rust-native** &mdash; Copper includes embedded `no_std` support; Sencha's full package/feature combinations need separate validation
 
-Performance and replay guarantees must be evaluated for the actual LAIR configuration. In particular, the direct MCAP backend changes the logging path, and stateful tasks require explicit snapshot/restore implementations.
+Performance and replay guarantees must be evaluated for the actual Sencha configuration. In particular, the direct MCAP backend changes the logging path, and stateful tasks require explicit snapshot/restore implementations.
 
 ---
 
-## Why LAIR?
+## Why Sencha?
 
 ### Coming from ROS
 
-| Area to evaluate | LAIR's starting point |
+| Area to evaluate | Sencha's starting point |
 |------------------|-----------------------|
 | Application model | Rust tasks composed through a RON graph |
 | Execution and wiring | Copper's dependency ordering and generated runtime |
@@ -62,17 +64,17 @@ ROS has existing work on deterministic execution and timing analysis. Our experi
 
 ### Coming from Copper
 
-| Area | LAIR Addition | Status |
+| Area | Sencha Addition | Status |
 |------------|---------------|--------|
-| API vocabulary | LAIR aliases/re-exports plus `#[lair_task]` and `#[lair_runtime]` wrappers | Implemented |
-| Project tooling | LAIR-specific `new` / `build` / `run` / `doctor` commands | Implemented; public scaffolding workflow needs validation |
-| Message bundle | `lair-msgs`: geometry, sensors, navigation, vehicle | Implemented |
-| Log storage | Direct MCAP backend and LAIR logging helper | Implemented; performance needs measurement |
+| API vocabulary | Sencha aliases/re-exports plus `#[sencha_task]` and `#[sencha_runtime]` wrappers | Implemented |
+| Project tooling | Sencha-specific `new` / `build` / `run` / `doctor` commands | Implemented; public scaffolding workflow needs validation |
+| Message bundle | `sencha-msgs`: geometry, sensors, navigation, vehicle | Implemented |
+| Log storage | Direct MCAP backend and Sencha logging helper | Implemented; performance needs measurement |
 | Actuator validation | `SafetyValidator` interface | Stub on main; prototype work on a separate branch |
 | External simulation | `SimBridge` interface | Mock implementation |
 | Execution research | Composition and enforcement of system-level requirements | Proposed; contribution not yet demonstrated |
 
-Copper has its own prelude, project templates, simulation support, and safety monitoring. LAIR's additions above do not imply those capabilities are absent upstream. We want experiments here to be useful to Copper contributors as well as LAIR users.
+Copper has its own prelude, project templates, simulation support, and safety monitoring. Sencha's additions above do not imply those capabilities are absent upstream. We want experiments here to be useful to Copper contributors as well as Sencha users.
 
 ---
 
@@ -81,10 +83,10 @@ Copper has its own prelude, project templates, simulation support, and safety mo
 Use the source checkout for this early build. Install a current stable Rust toolchain and your platform's native compiler/linker, then:
 
 ```bash
-git clone https://github.com/arunvenkatadri/lair.git
-cd lair
+git clone https://github.com/arunvenkatadri/sencha.git
+cd sencha
 cargo check --workspace --locked
-cargo run --locked -p lair-cli -- --help
+cargo run --locked -p sencha-cli -- --help
 cargo run --locked -p simple-robot
 ```
 
@@ -94,7 +96,7 @@ The CLI includes project scaffolding, but its generated registry dependencies st
 
 ## Example
 
-A LAIR transform task uses Copper's message and lifecycle interfaces under LAIR names:
+A Sencha transform task uses Copper's message and lifecycle interfaces under Sencha names:
 
 ```rust
 use cu29::prelude::*;
@@ -104,21 +106,21 @@ pub struct Processor;
 // This task has no persistent state to snapshot.
 impl Freezable for Processor {}
 
-impl LairTask for Processor {
+impl SenchaTask for Processor {
     type Resources<'r> = ();
     type Input<'m> = input_msg!(f32);
     type Output<'m> = output_msg!(f32);
 
-    fn new(_config: Option<&LairConfig>, _resources: Self::Resources<'_>) -> LairResult<Self> {
+    fn new(_config: Option<&SenchaConfig>, _resources: Self::Resources<'_>) -> SenchaResult<Self> {
         Ok(Self)
     }
 
     fn process(
         &mut self,
-        _ctx: &LairContext,
+        _ctx: &SenchaContext,
         input: &Self::Input<'_>,
         output: &mut Self::Output<'_>,
-    ) -> LairResult<()> {
+    ) -> SenchaResult<()> {
         output.set_payload(input.payload().copied().unwrap_or(0.0) * 2.0);
         Ok(())
     }
@@ -132,23 +134,23 @@ See the [complete example](./examples/simple_robot/src/main.rs) and [RON graph](
 ## Architecture
 
 ```
-+-----------------------------------------------------------+
-|                    Your Robot Application                  |
-+-----------------------------------------------------------+
-|  +-----------------------------------------------------+  |
-|  |              BISCUIT SAFETY LAYER (optional)         |  |
-|  |   SafetyValidator trait defined, not yet enforced    |  |
-|  +-----------------------------------------------------+  |
-+-----------------------------------------------------------+
-|                       LAIR API                            |
-|  LairSource, LairTask, LairSink, LairContext, LairMsg    |
-+-----------------------------------------------------------+
-|                  COPPER RUNTIME ENGINE                    |
-|     DAG Scheduler | Message Passing | Logging | Clock    |
-+-----------------------------------------------------------+
-|               HARDWARE / SIMULATION                       |
-|     Copper platform support | External sim: mock only    |
-+-----------------------------------------------------------+
++--------------------------------------------------------------+
+|                    Your Robot Application                    |
++--------------------------------------------------------------+
+|       Biscuit interface (stub; no enforced validation)       |
++--------------------------------------------------------------+
+|                          Sencha API                          |
++--------------------------------------------------------------+
+|    SenchaSource | SenchaTask | SenchaSink | SenchaContext    |
++--------------------------------------------------------------+
+|                    Copper Runtime Engine                     |
++--------------------------------------------------------------+
+|      DAG Scheduler | Message Passing | Logging | Clock       |
++--------------------------------------------------------------+
+|                    Hardware / Simulation                     |
++--------------------------------------------------------------+
+|     Copper platform support | External simulation: mock      |
++--------------------------------------------------------------+
 ```
 
 ---
@@ -159,11 +161,11 @@ This table describes the main-branch implementation. Implemented code is not a c
 
 | Area | Status | Notes |
 |------|--------|-------|
-| DAG scheduler, zero-copy bus, clock, monitoring | **Implemented** | Inherited Copper engine; LAIR-specific performance needs measurement |
-| LAIR API (`LairSource`, `LairTask`, `LairSink`, etc.) | **Implemented** | Type aliases + trait re-exports over Copper |
+| DAG scheduler, zero-copy bus, clock, monitoring | **Implemented** | Inherited Copper engine; Sencha-specific performance needs measurement |
+| Sencha API (`SenchaSource`, `SenchaTask`, `SenchaSink`, etc.) | **Implemented** | Type aliases + trait re-exports over Copper |
 | Message types (geometry, sensors, navigation, vehicle) | **Implemented** | Serialization roundtrip tests included |
-| CLI (`lair new`, `build`, `run`, `doctor`) | **Implemented** | Cargo wrappers and system checks; scaffolding dependency setup needs work |
-| Proc macros (`#[lair_task]`, `#[lair_runtime]`) | **Implemented** | `lair_task` auto-impls Freezable; `lair_runtime` delegates to Copper |
+| CLI (`sencha new`, `build`, `run`, `doctor`) | **Implemented** | Cargo wrappers and system checks; scaffolding dependency setup needs work |
+| Proc macros (`#[sencha_task]`, `#[sencha_runtime]`) | **Implemented** | `sencha_task` auto-impls Freezable; `sencha_runtime` delegates to Copper |
 | Safety validation | **Stub** | `SafetyValidator` trait defined, `NoOpSafetyValidator` passes everything |
 | Simulation bridge | **Stub** | `SimBridge` trait defined, `MockSimBridge` is in-memory only |
 | Fleet management, cloud sync | Not started | Future work |
@@ -177,16 +179,16 @@ The main branch defines a safety validation interface but does not enforce routi
 ## Project Structure
 
 ```
-lair/
+sencha/
 +-- crates/
-|   +-- lair/           # Main prelude crate (re-exports everything)
-|   +-- lair-core/      # LAIR API types (LairSource, LairTask, LairSink, ...)
-|   +-- lair-derive/    # Proc macros (#[lair_task], #[lair_runtime])
-|   +-- lair-msgs/      # Standard message types (geometry, sensors, navigation, vehicle)
-|   +-- lair-biscuit/   # Safety validation (SafetyValidator trait)
-|   +-- lair-bagel/     # Structured logging and telemetry (MCAP)
-|   +-- lair-isaac/     # Simulation bridge interface (SimBridge trait)
-|   +-- lair-cli/       # CLI tool (lair new, build, run, doctor)
+|   +-- sencha/           # Runtime facade (Cargo package: cu29)
+|   +-- sencha-core/      # Sencha API types (SenchaSource, SenchaTask, SenchaSink, ...)
+|   +-- sencha-derive/    # Proc macros (#[sencha_task], #[sencha_runtime])
+|   +-- sencha-msgs/      # Standard message types (geometry, sensors, navigation, vehicle)
+|   +-- sencha-biscuit/   # Safety validation (SafetyValidator trait)
+|   +-- sencha-bagel/     # Structured logging and telemetry (MCAP)
+|   +-- sencha-isaac/     # Simulation bridge interface (SimBridge trait)
+|   +-- sencha-cli/       # CLI tool (sencha new, build, run, doctor)
 |   +-- cu29-*/         # Copper runtime engine (forked, internal)
 +-- examples/
 |   +-- simple_robot/   # Minimal source -> task -> sink example
@@ -199,7 +201,7 @@ lair/
 
 ## Integrations
 
-LAIR is part of the **Extelligence** ecosystem:
+Sencha is part of the **Extelligence** ecosystem:
 
 | Project | Description | v0.1-beta Status |
 |---------|-------------|------------------|
@@ -212,13 +214,13 @@ LAIR is part of the **Extelligence** ecosystem:
 
 ## For Contributors
 
-This README is aimed at both **users** (robotics engineers evaluating LAIR) and **contributors** (developers building on or extending it).
+This README is aimed at both **users** (robotics engineers evaluating Sencha) and **contributors** (developers building on or extending it).
 
 We welcome ROS and Copper contributors, robotics researchers, and engineers working on industrial systems. Useful contributions include reproducible failure cases, baseline implementations, robot experiments, architecture reviews, and improvements suitable for upstream adoption.
 
 If you're contributing:
 - The runtime engine lives in `crates/cu29-*` &mdash; this is forked Copper, modify carefully
-- The LAIR API layer lives in `crates/lair-*` &mdash; this is where most new work happens
+- The Sencha API layer lives in `crates/sencha-*` &mdash; this is where most new work happens
 - `cargo check` must pass on the full workspace before submitting changes
 - `cargo test --workspace --exclude cu29-base-derive --exclude cu29-clock` runs the stable test suite
 
@@ -226,11 +228,11 @@ If you're contributing:
 
 ## Acknowledgments
 
-LAIR's runtime engine is a fork of **[Copper](https://github.com/copper-project/copper-rs)** (cu29), created by **[Gbin](https://github.com/gbin)** and the Copper contributors. Copper provides the foundational systems that make LAIR possible:
+Sencha's runtime engine is a fork of **[Copper](https://github.com/copper-project/copper-rs)** (cu29), created by **[Gbin](https://github.com/gbin)** and the Copper contributors. Copper provides the foundational systems that make Sencha possible:
 
 - **Deterministic DAG scheduler** &mdash; executes task graphs in dependency order
 - **Zero-copy message bus** &mdash; lock-free inter-task communication
-- **Unified logging infrastructure** &mdash; structured logs, messages, and task snapshots; LAIR adds a direct MCAP backend
+- **Unified logging infrastructure** &mdash; structured logs, messages, and task snapshots; Sencha adds a direct MCAP backend
 - **`#[copper_runtime]` proc macro** &mdash; compile-time task graph validation and code generation
 - **Monotonic clock** &mdash; high-precision, mockable `RobotClock`
 - **`Freezable` trait** &mdash; task state snapshot/restore for deterministic replay
@@ -248,5 +250,5 @@ Apache 2.0, as declared in the workspace manifest. The Apache license text and C
 ---
 
 <p align="center">
-  <strong>LAIR</strong> &mdash; Robotics systems research, built on Copper.
+  <strong>Sencha</strong> &mdash; Robotics systems research, built on Copper.
 </p>

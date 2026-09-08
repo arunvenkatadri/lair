@@ -18,16 +18,16 @@ members = [
     "crates/cu29-helpers",
     "crates/cu29-derive",
     "crates/cu29-units",
-    "crates/lair",
-    "crates/lair-derive",
+    "crates/sencha",
+    "crates/sencha-derive",
 
-    # LAIR public API crates
-    "crates/lair-core",
-    "crates/lair-msgs",
-    "crates/lair-biscuit",
-    "crates/lair-bagel",
-    "crates/lair-cli",
-    "crates/lair-isaac",
+    # Sencha public API crates
+    "crates/sencha-core",
+    "crates/sencha-msgs",
+    "crates/sencha-biscuit",
+    "crates/sencha-bagel",
+    "crates/sencha-cli",
+    "crates/sencha-isaac",
 
     # Examples
     "examples/simple_robot",
@@ -38,15 +38,15 @@ version = "0.1.0-beta"
 edition = "2024"
 license = "Apache-2.0"
 authors = ["Extelligence <team@extelligence.ai>"]
-repository = "https://github.com/Extelligence-ai/lair"
-homepage = "https://lair.dev"
+repository = "https://github.com/arunvenkatadri/sencha"
+homepage = "https://github.com/arunvenkatadri/sencha"
 keywords = ["robotics", "middleware", "safety", "deterministic", "autonomous"]
 categories = ["science::robotics", "embedded", "aerospace::drones"]
 rust-version = "1.75"
 
 [workspace.dependencies]
 # ── Internal crates (forked from Copper) ──
-cu29 = { path = "crates/lair", version = "0.1.0-beta" }
+cu29 = { path = "crates/sencha", version = "0.1.0-beta" }
 cu29-clock = { path = "crates/cu29-clock", default-features = false, version = "0.1.0-beta" }
 cu29-intern-strs = { path = "crates/cu29-intern-strs", version = "0.1.0-beta" }
 cu29-reflect-derive = { path = "crates/cu29-reflect-derive", version = "0.1.0-beta" }
@@ -63,14 +63,14 @@ cu29-helpers = { path = "crates/cu29-helpers", version = "0.1.0-beta" }
 cu29-derive = { path = "crates/cu29-derive", default-features = false, version = "0.1.0-beta" }
 cu29-units = { path = "crates/cu29-units", version = "0.1.0-beta" }
 
-# ── LAIR public API crates ──
-lair-core = { path = "crates/lair-core", version = "0.1.0-beta" }
-lair-msgs = { path = "crates/lair-msgs", version = "0.1.0-beta" }
-lair-biscuit = { path = "crates/lair-biscuit", version = "0.1.0-beta" }
-lair-bagel = { path = "crates/lair-bagel", version = "0.1.0-beta" }
-lair-cli = { path = "crates/lair-cli", version = "0.1.0-beta" }
-lair-isaac = { path = "crates/lair-isaac", version = "0.1.0-beta" }
-lair-derive = { path = "crates/lair-derive", version = "0.1.0-beta" }
+# ── Sencha public API crates ──
+sencha-core = { path = "crates/sencha-core", version = "0.1.0-beta" }
+sencha-msgs = { path = "crates/sencha-msgs", version = "0.1.0-beta" }
+sencha-biscuit = { path = "crates/sencha-biscuit", version = "0.1.0-beta" }
+sencha-bagel = { path = "crates/sencha-bagel", version = "0.1.0-beta" }
+sencha-cli = { path = "crates/sencha-cli", version = "0.1.0-beta" }
+sencha-isaac = { path = "crates/sencha-isaac", version = "0.1.0-beta" }
+sencha-derive = { path = "crates/sencha-derive", version = "0.1.0-beta" }
 
 # ── Serialization ──
 bincode = { version = "2.0", default-features = false, features = ["derive", "alloc"] }
@@ -137,7 +137,7 @@ mcap = { version = "0.24", default-features = false, features = ["lz4", "zstd"] 
 # ── Testing ──
 tempfile = { version = "3.23", default-features = false }
 
-# ── LAIR-specific future deps ──
+# ── Sencha-specific future deps ──
 thiserror = "1.0"
 tokio = { version = "1.0", features = ["full", "rt-multi-thread", "sync", "time", "macros"] }
 chrono = { version = "0.4", features = ["serde"] }

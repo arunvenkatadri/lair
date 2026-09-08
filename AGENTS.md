@@ -4,11 +4,11 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## Project Overview
 
-LAIR (Layered Autonomous Intelligence Runtime) is an experimental robotics systems platform exploring a successor to ROS, built in Rust on Copper. Commercial and industrial robots provide the application setting. Researchers and engineers from the ROS and Copper communities are welcome, and reusable experimental results should benefit both communities.
+Sencha is an experimental robotics systems platform exploring a successor to ROS, built in Rust on Copper. Commercial and industrial robots provide the application setting. Researchers and engineers from the ROS and Copper communities are welcome, and reusable experimental results should benefit both communities.
 
-**Status**: Early implementation. Main contains a Copper-derived runtime, LAIR API/tooling, message types, and direct MCAP logging. Safety and external simulation are stubs on main; additional prototype work exists on another branch. See `RESEARCH.md` for the dated source assessment and `RESEARCH_AGENDA.md` for the research direction and early-2027 paper/artifact target.
+**Status**: Early implementation. Main contains a Copper-derived runtime, Sencha API/tooling, message types, and direct MCAP logging. Safety and external simulation are stubs on main; additional prototype work exists on another branch. See `RESEARCH.md` for the dated source assessment and `RESEARCH_AGENDA.md` for the research direction and early-2027 paper/artifact target.
 
-The architecture, feature, dependency, and simulation lists below include historical plans. Verify them against Cargo manifests and source before treating them as implemented. Distinguish inherited Copper capabilities, LAIR changes, experimental hypotheses, and validated results.
+The architecture, feature, dependency, and simulation lists below include historical plans. Verify them against Cargo manifests and source before treating them as implemented. Distinguish inherited Copper capabilities, Sencha changes, experimental hypotheses, and validated results.
 
 ## Build Commands
 
@@ -36,24 +36,24 @@ cargo bench
 
 The project uses a Cargo workspace with the following crates. Descriptions here include planned extensions; check the README and source for current behavior:
 
-- **lair** - Main runtime library (re-exports core functionality)
-- **lair-core** - Core traits (`LairSource`, `LairTask`, `LairSink`), types, and error handling
-- **lair-msgs** - Standard message types (Geometry, Sensors, Navigation) compatible with ROS message conventions
-- **lair-biscuit** - Safety system integration (optional, feature-gated) - validates outputs against physics constraints using DuckDB
-- **lair-bagel** - Logging layer (Parquet/DuckDB format) with NLP query support
-- **lair-derive** - Proc macros (`#[lair::task]`, `#[lair::runtime]`, `#[lair::action]`)
-- **lair-cli** - Command-line tool (`lair new`, `lair build`, `lair run`, etc.)
-- **lair-isaac** - NVIDIA Isaac Sim integration (optional, feature-gated) - simulation, synthetic data, testing
+- **cu29** (in `crates/sencha`) - Main runtime facade; retains the Copper package name
+- **sencha-core** - Core traits (`SenchaSource`, `SenchaTask`, `SenchaSink`), types, and error handling
+- **sencha-msgs** - Standard message types (Geometry, Sensors, Navigation) compatible with ROS message conventions
+- **sencha-biscuit** - Safety system integration (optional, feature-gated) - validates outputs against physics constraints using DuckDB
+- **sencha-bagel** - Logging layer (Parquet/DuckDB format) with NLP query support
+- **sencha-derive** - Proc macros (`#[sencha_task]`, `#[sencha_runtime]`)
+- **sencha-cli** - Command-line tool (`sencha new`, `sencha build`, `sencha run`, etc.)
+- **sencha-isaac** - NVIDIA Isaac Sim integration (optional, feature-gated) - simulation, synthetic data, testing
 
-Future crates (not in current workspace): `lair-micro` (no_std embedded), `lair-bevy` (Bevy simulation), `lair-studio` (Web UI), `lair-k8s` (Kubernetes operator)
+Future crates (not in current workspace): `sencha-micro` (no_std embedded), `sencha-bevy` (Bevy simulation), `sencha-studio` (Web UI), `sencha-k8s` (Kubernetes operator)
 
 ## Core Concepts
 
 ### Task System
 Tasks are the fundamental computation unit. Three trait types:
-- `LairSource` - Produces data, no input (sensor drivers)
-- `LairTask` - Transforms input to output (algorithms)
-- `LairSink` - Consumes data, no output (actuator drivers)
+- `SenchaSource` - Produces data, no input (sensor drivers)
+- `SenchaTask` - Transforms input to output (algorithms)
+- `SenchaSink` - Consumes data, no output (actuator drivers)
 
 Tasks have a lifecycle: Unconfigured → Inactive → Active → Inactive → Finalized
 
@@ -86,7 +86,7 @@ All integrations are optional:
 
 ## Simulation
 
-LAIR prioritizes **NVIDIA Isaac Sim** for simulation, aligned with target markets (AV, industrial, agriculture) that already use NVIDIA hardware.
+Sencha prioritizes **NVIDIA Isaac Sim** for simulation, aligned with target markets (AV, industrial, agriculture) that already use NVIDIA hardware.
 
 ### Simulation Modes
 

@@ -1,6 +1,6 @@
 [package]
 name = "cu29-clock"
-description = "LAIR Robot Clock implementation. It is a monotonic high precision clock for real time applications. It has a mock feature for testing time dependent behaviors. It is part of the LAIR project but can be used independently."
+description = "Sencha Robot Clock implementation. It is a monotonic high precision clock for real time applications. It has a mock feature for testing time dependent behaviors. It is part of the Sencha project but can be used independently."
 documentation = "https://docs.rs/cu29-clock"
 version.workspace = true
 authors.workspace = true

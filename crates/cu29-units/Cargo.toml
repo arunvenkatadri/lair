@@ -8,7 +8,7 @@ keywords.workspace = true
 categories.workspace = true
 homepage.workspace = true
 repository.workspace = true
-description = "LAIR-native units with uom-shaped API and native bincode/reflect support"
+description = "Sencha-native units with uom-shaped API and native bincode/reflect support"
 readme = "README.md"
 
 [dependencies]
@@ -20,6 +20,6 @@ bevy_reflect = { workspace = true, optional = true }
 [features]
 default = ["std"]
 std = ["uom/std"]
-# Compatibility shim for crates that forward the LAIR textlogs feature.
+# Compatibility shim for crates that forward the Sencha textlogs feature.
 textlogs = []
 reflect = ["dep:bevy_reflect"]
