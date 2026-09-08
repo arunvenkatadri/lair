@@ -21,7 +21,7 @@
 
 **Sencha is an experimental robotics systems platform exploring a successor to ROS.** Built on Copper, it develops and evaluates new execution architectures, with reusable results for the ROS and Copper communities.
 
-Formerly LAIR, Sencha is named after the tea its founder drinks every morning. See the [rename notes](./MIGRATING_TO_SENCHA.md) for package, API, and CLI changes.
+Formerly LAIR, Sencha is named after the tea its founders drink every morning. See the [rename notes](./MIGRATING_TO_SENCHA.md) for package, API, and CLI changes.
 
 **Built on [Copper](https://github.com/copper-project/copper-rs).** The DAG scheduler, message-passing machinery, clock, unified logging infrastructure, and task execution model come from the Copper robotics framework created by [Gbin](https://github.com/gbin) and the Copper contributors. Sencha maintains a fork for experimentation, adds its own API/tooling and direct MCAP backend, and explores further architectural changes. See [Acknowledgments](#acknowledgments).
 
