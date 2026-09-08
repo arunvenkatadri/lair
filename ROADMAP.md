@@ -2,7 +2,9 @@
 
 ## Vision
 
-**LAIR** (Layered Autonomous Intelligence Runtime) is a production robotics operating system for commercial and industrial deployments. Built in Rust with safety-first design, deterministic execution, and cloud-native architecture via Matcha.
+**LAIR** (Layered Autonomous Intelligence Runtime) is an experimental robotics systems platform exploring a successor to ROS. Built in Rust on Copper, it evaluates architectural changes for dependable robot applications and shares reusable results with the ROS and Copper communities.
+
+The current target is an **early-2027 paper and reproducible artifact** demonstrating one original architectural contribution on a complete robot application. See [RESEARCH_AGENDA.md](RESEARCH_AGENDA.md) for the active research direction. The release phases, dates, and status tables below are historical product planning, not current implementation status or release commitments; use the [README](README.md) and [dated source assessment](RESEARCH.md) for that distinction.
 
 **Target Markets (in order):**
 1. 🚗 **Autonomous Vehicles** - Trucks, delivery, shuttles, robotaxis
@@ -10,7 +12,7 @@
 3. 🚜 **Agriculture / Construction** - Autonomous tractors, dozers, haulers
 4. 🤖 **Commercial Robotics** - Delivery robots, inspection, service
 
-**NOT building for:** Research, academia, education, hobbyists.
+**Community:** Robotics researchers, ROS and Copper contributors, and engineers are welcome. Industrial applications and academic collaboration support the same research program.
 
 ---
 
@@ -289,7 +291,7 @@ lair build --no-default-features             # Minimal embedded
 
 ## Philosophy
 
-1. **Commercial/Industrial ONLY** - We build for production, not research
+1. **Industrial applications, open research** - Evaluate new architectures on realistic workloads with community participation
 2. **Reliability > Features** - 24/7 uptime matters more than cool demos
 3. **Fleet-First** - Single robot is easy; 500 robots is the real problem
 4. **Certification-Ready** - Design for ISO 26262 from day one

@@ -1,12 +1,14 @@
 # LAIR Simulation Architecture
 
 **Version**: 0.1.0-draft
-**Status**: Design Phase
+**Status**: Historical design draft; external simulation is a mock on main
 **Last Updated**: February 2026
 
 ---
 
 ## Executive Summary
+
+The integration designs and dates below are proposals. The [research agenda](RESEARCH_AGENDA.md) prioritizes the simulator or robot platform needed to evaluate the first architectural contribution; full Isaac Sim support is not a prerequisite for the early-2027 paper/artifact target. See the [README](README.md) for current implementation status.
 
 LAIR's simulation strategy prioritizes **NVIDIA Isaac Sim** as the primary simulation platform, with record/replay as the initial testing mechanism and Bevy as an open-source fallback. This aligns with LAIR's target markets (AV, industrial, agriculture) which already use NVIDIA hardware.
 

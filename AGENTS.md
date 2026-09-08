@@ -4,24 +4,23 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## Project Overview
 
-LAIR (Layered Autonomous Intelligence Runtime) is a Rust-native robotics operating system targeting commercial/industrial deployments (autonomous vehicles, warehouses, agriculture, commercial robotics). It is NOT for research, academia, or hobbyists.
+LAIR (Layered Autonomous Intelligence Runtime) is an experimental robotics systems platform exploring a successor to ROS, built in Rust on Copper. Commercial and industrial robots provide the application setting. Researchers and engineers from the ROS and Copper communities are welcome, and reusable experimental results should benefit both communities.
 
-**Status**: Design phase - specifications exist but implementation has not started.
+**Status**: Early implementation. Main contains a Copper-derived runtime, LAIR API/tooling, message types, and direct MCAP logging. Safety and external simulation are stubs on main; additional prototype work exists on another branch. See `RESEARCH.md` for the dated source assessment and `RESEARCH_AGENDA.md` for the research direction and early-2027 paper/artifact target.
+
+The architecture, feature, dependency, and simulation lists below include historical plans. Verify them against Cargo manifests and source before treating them as implemented. Distinguish inherited Copper capabilities, LAIR changes, experimental hypotheses, and validated results.
 
 ## Build Commands
 
 ```bash
-# Build the workspace (once crates are implemented)
+# Build the workspace
 cargo build
 
 # Build with release optimizations
 cargo build --release
 
-# Build with specific features
-cargo build --features bagel,matcha          # For AV, Industrial
-cargo build --features biscuit,bagel,matcha  # For service robots
-cargo build --features isaac                 # With Isaac Sim support
-cargo build --no-default-features            # Minimal/embedded
+# Check the complete workspace against the lockfile
+cargo check --workspace --locked
 
 # Run tests
 cargo test
@@ -35,7 +34,7 @@ cargo bench
 
 ## Workspace Architecture
 
-The project uses a Cargo workspace with these planned crates:
+The project uses a Cargo workspace with the following crates. Descriptions here include planned extensions; check the README and source for current behavior:
 
 - **lair** - Main runtime library (re-exports core functionality)
 - **lair-core** - Core traits (`LairSource`, `LairTask`, `LairSink`), types, and error handling
@@ -106,14 +105,16 @@ See `SIMULATION.md` for detailed architecture and integration design.
 
 ## Design Philosophy
 
-1. Commercial/Industrial ONLY - build for production, not research
+1. Industrial applications, open research - use realistic robots to evaluate new architectures and welcome community participation
 2. Reliability > Features - 24/7 uptime over cool demos
 3. Fleet-First - design for managing 500 robots, not just one
-4. Certification-Ready - design for ISO 26262 from day one
+4. Evidence before claims - state assumptions, compare strong baselines, and publish reproducible results; certification remains a future objective
 5. Modular - use what you need via feature flags
 
 ## Related Documentation
 
+- `RESEARCH_AGENDA.md` - ROS-successor ambition, research program, and community contributions
+- `RESEARCH.md` - Dated implementation assessment and Copper comparison
 - `SPEC.md` - Full technical specification with API examples
 - `ROADMAP.md` - Release phases and feature priorities
 - `NOTES.md` - Design decisions and open questions
