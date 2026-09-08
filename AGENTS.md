@@ -10,6 +10,8 @@ Sencha is an experimental robotics systems platform exploring a successor to ROS
 
 The architecture, feature, dependency, and simulation lists below include historical plans. Verify them against Cargo manifests and source before treating them as implemented. Distinguish inherited Copper capabilities, Sencha changes, experimental hypotheses, and validated results.
 
+Sencha initially launches as Arun Venkatadri's personal project on a standalone site with a blog and research-style experiment reports. Every experiment must state learning goals for both the ROS and Copper communities and report evidence-backed lessons, including negative results. Use `EXPERIMENT_REPORT_TEMPLATE.md` and see `WEBSITE_POSITIONING.md`; Extelligence site placement follows traction.
+
 ## Build Commands
 
 ```bash

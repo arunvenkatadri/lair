@@ -16,7 +16,9 @@ The current target is an **early-2027 paper and reproducible artifact** demonstr
 
 ---
 
-## The Extelligence Stack
+## Historical Extelligence integration plan
+
+Sencha initially launches as a personal research project with a standalone experiment journal. Extelligence website placement follows traction; see the [publishing plan](WEBSITE_POSITIONING.md). The stack below records earlier integration ambitions.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -299,4 +301,4 @@ sencha build --no-default-features             # Minimal embedded
 
 ---
 
-*Sencha is part of the Extelligence ecosystem alongside Bagel, Biscuit, and Matcha.*
+*Sencha begins as a personal research project; future Extelligence placement will build on published experiments.*
