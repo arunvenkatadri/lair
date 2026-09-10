@@ -21,7 +21,7 @@
 
 **Sencha is an experimental robotics systems platform exploring a successor to ROS.** Built on Copper, it develops and evaluates new execution architectures, with reusable results for the ROS and Copper communities.
 
-Formerly LAIR, Sencha is named after the tea its founders drink every morning. See the [rename notes](./MIGRATING_TO_SENCHA.md) for package, API, and CLI changes.
+Formerly LAIR, Sencha is named after the tea. See the [rename notes](./MIGRATING_TO_SENCHA.md) for package, API, and CLI changes.
 
 Sencha is currently [Arun Venkatadri's](https://github.com/arunvenkatadri) personal research project. A standalone site is planned for a blog and research-style experiment reports. Every experiment aims to produce results the ROS and Copper communities can learn from, with methods, findings, limitations, and reproducible artifacts published together. See the [publishing plan](./WEBSITE_POSITIONING.md).
 
